@@ -293,11 +293,16 @@ a.tlink:hover{text-decoration:underline}
       <div class="mode-lbl" style="margin-bottom:0;">Gemini API Key</div>
       <span id="gemini-status-badge" style="font-size:8.5px; font-family:var(--fm); padding:1px 4px; border-radius:3px; background:var(--rdb); color:var(--rd); border:1px solid var(--rdd);">⚠️ Inaktif</span>
     </div>
-    <div style="display:flex; gap:4px; align-items:center; position:relative;">
+    <div style="display:flex; gap:4px; align-items:center; position:relative; margin-bottom:6px;">
       <input type="password" id="gemini-key-input" placeholder="AIzaSy..." style="flex:1; min-width:0; background:var(--bg3); border:1px solid var(--bd2); border-radius:var(--r); color:var(--tx); padding:5px 24px 5px 6px; font-size:10px; font-family:var(--fm);" oninput="onGeminiKeyChange()" />
       <span id="gemini-eye-toggle" onclick="toggleGeminiKeyVisibility()" style="position:absolute; right:42px; cursor:pointer; font-size:10px; color:var(--tx2); user-select:none; z-index:10;">👁️</span>
       <button onclick="saveGeminiKey()" style="padding:5px 8px; font-size:10px; border-radius:var(--r); background:var(--ac); color:#fff; border:none; cursor:pointer; font-family:var(--fb); font-weight:500; transition:background .1s;">Set</button>
     </div>
+    <select id="gemini-model-sel" onchange="saveGeminiModel()" style="width:100%; background:var(--bg3); border:1px solid var(--bd2); border-radius:var(--r); color:var(--tx2); padding:5px 6px; font-size:10px; font-family:var(--fm); cursor:pointer; outline:none;">
+      <option value="gemini-1.5-flash">gemini-1.5-flash (Stabil & Cepat)</option>
+      <option value="gemini-2.0-flash">gemini-2.0-flash (Terbaru)</option>
+      <option value="gemini-1.5-pro">gemini-1.5-pro (Lebih Pintar)</option>
+    </select>
   </div>
 
   <div class="gdrive-bar">
@@ -941,11 +946,11 @@ function save(){S.lastModified=Date.now();try{localStorage.setItem('affos4',JSON
 // AI API CONFIG & HELPER (GEMINI)
 // ============================================================
 const DEFAULT_GEMINI_API_KEY = 'AIzaSyBLsiHRd90qyb4GMyL_knX7-egPMi9nGpo';
-const GEMINI_MODEL = 'gemini-2.0-flash';
 
 async function callGemini(prompt, maxTokens = 1000) {
   const customKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${customKey}`;
+  const customModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${customModel}:generateContent?key=${customKey}`;
   
   const res = await fetch(url, {
     method: 'POST',
@@ -996,6 +1001,18 @@ function initGeminiKey() {
   const inp = document.getElementById('gemini-key-input');
   if (inp) inp.value = customKey;
   updateGeminiBadge(customKey);
+
+  const savedModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+  const sel = document.getElementById('gemini-model-sel');
+  if (sel) sel.value = savedModel;
+}
+
+function saveGeminiModel() {
+  const sel = document.getElementById('gemini-model-sel');
+  if (sel) {
+    localStorage.setItem('gemini_model', sel.value);
+    toast('Model diubah ke ' + sel.value);
+  }
 }
 
 function updateGeminiBadge(key) {
