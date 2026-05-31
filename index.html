@@ -1,3 +1,15 @@
+<!--
+Tujuan: Halaman Tunggal (SPA) Aplikasi Manajemen Afiliasi TikTok Shop (AffiliateOS).
+Caller: Browser Desktop Pengguna.
+Dependensi: SheetJS (XLSX), Google Identity Services (GIS), Gemini API, Google Drive API.
+Main Functions:
+  - callGemini(prompt, maxTokens): Melakukan inferensi ke Gemini API untuk deskripsi dan skrip video.
+  - saveGeminiKey(): Menyimpan Gemini API key kustom ke localStorage.
+  - gdConnect() & gdSaveNow(): Sinkronisasi database lokal dengan Google Drive.
+  - refreshScores(): Kalkulasi peringkat produk menggunakan TOPSIS/SAW.
+  - importRows(): Mengimpor data analitik TikTok.
+Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakukan fetch ke Gemini API dan Google Drive API, memproses file lokal.
+-->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -275,6 +287,19 @@ a.tlink:hover{text-decoration:underline}
       <button class="mbtn" id="mb-bench" onclick="setMode('bench')">Benchmark</button>
     </div>
   </div>
+  
+  <div class="sb-btm" style="padding:8px 10px; border-top:1px solid var(--bd);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+      <div class="mode-lbl" style="margin-bottom:0;">Gemini API Key</div>
+      <span id="gemini-status-badge" style="font-size:8.5px; font-family:var(--fm); padding:1px 4px; border-radius:3px; background:var(--rdb); color:var(--rd); border:1px solid var(--rdd);">⚠️ Inaktif</span>
+    </div>
+    <div style="display:flex; gap:4px; align-items:center; position:relative;">
+      <input type="password" id="gemini-key-input" placeholder="AIzaSy..." style="flex:1; min-width:0; background:var(--bg3); border:1px solid var(--bd2); border-radius:var(--r); color:var(--tx); padding:5px 24px 5px 6px; font-size:10px; font-family:var(--fm);" oninput="onGeminiKeyChange()" />
+      <span id="gemini-eye-toggle" onclick="toggleGeminiKeyVisibility()" style="position:absolute; right:42px; cursor:pointer; font-size:10px; color:var(--tx2); user-select:none; z-index:10;">👁️</span>
+      <button onclick="saveGeminiKey()" style="padding:5px 8px; font-size:10px; border-radius:var(--r); background:var(--ac); color:#fff; border:none; cursor:pointer; font-family:var(--fb); font-weight:500; transition:background .1s;">Set</button>
+    </div>
+  </div>
+
   <div class="gdrive-bar">
     <div class="gdrive-status">
       <div class="gd-dot" id="gd-dot"></div>
@@ -915,12 +940,14 @@ function save(){S.lastModified=Date.now();try{localStorage.setItem('affos4',JSON
 // ============================================================
 // AI API CONFIG & HELPER (GEMINI)
 // ============================================================
-const GEMINI_API_KEY = 'AIzaSyBLsiHRd90qyb4GMyL_knX7-egPMi9nGpo';
+const DEFAULT_GEMINI_API_KEY = 'AIzaSyBLsiHRd90qyb4GMyL_knX7-egPMi9nGpo';
 const GEMINI_MODEL = 'gemini-2.0-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 async function callGemini(prompt, maxTokens = 1000) {
-  const res = await fetch(GEMINI_URL, {
+  const customKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${customKey}`;
+  
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -928,10 +955,82 @@ async function callGemini(prompt, maxTokens = 1000) {
       generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 }
     })
   });
-  if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+  
+  if (!res.ok) {
+    if (res.status === 429) {
+      throw new Error(`Gemini API error 429 (Rate Limit). API Key gratis bawaan telah habis kuota atau dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan masukkan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+    } else if (res.status === 403) {
+      throw new Error(`Gemini API error 403 (Forbidden). API Key tidak valid atau telah dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan ganti dengan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+    }
+    throw new Error(`Gemini API error ${res.status}`);
+  }
+  
   const data = await res.json();
   const raw = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
   return raw.replace(/```json|```/g, '').trim();
+}
+
+// ============================================================
+// GEMINI API KEY MANAGEMENT
+// ============================================================
+function initGeminiKey() {
+  const customKey = localStorage.getItem('gemini_api_key') || '';
+  const inp = document.getElementById('gemini-key-input');
+  if (inp) inp.value = customKey;
+  updateGeminiBadge(customKey);
+}
+
+function updateGeminiBadge(key) {
+  const badge = document.getElementById('gemini-status-badge');
+  if (!badge) return;
+  if (key && key.startsWith('AIzaSy')) {
+    badge.textContent = '✔ Aktif';
+    badge.style.background = 'var(--grb)';
+    badge.style.color = 'var(--gr)';
+    badge.style.borderColor = 'var(--grd)';
+  } else if (key) {
+    badge.textContent = '⚠️ Format Salah';
+    badge.style.background = 'var(--amb)';
+    badge.style.color = 'var(--am)';
+    badge.style.borderColor = 'var(--amd)';
+  } else {
+    badge.textContent = '⚠️ Inaktif';
+    badge.style.background = 'var(--rdb)';
+    badge.style.color = 'var(--rd)';
+    badge.style.borderColor = 'var(--rdd)';
+  }
+}
+
+function saveGeminiKey() {
+  const inp = document.getElementById('gemini-key-input');
+  if (!inp) return;
+  const key = inp.value.trim();
+  if (key) {
+    localStorage.setItem('gemini_api_key', key);
+    toast('API Key disimpan!');
+  } else {
+    localStorage.removeItem('gemini_api_key');
+    toast('API Key dikosongkan!');
+  }
+  updateGeminiBadge(key);
+}
+
+function toggleGeminiKeyVisibility() {
+  const inp = document.getElementById('gemini-key-input');
+  const eye = document.getElementById('gemini-eye-toggle');
+  if (!inp || !eye) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    eye.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    eye.textContent = '👁️';
+  }
+}
+
+function onGeminiKeyChange() {
+  const inp = document.getElementById('gemini-key-input');
+  if (inp) updateGeminiBadge(inp.value.trim());
 }
 
 // ============================================================
@@ -1870,6 +1969,7 @@ refreshScores();
 renderDash();
 document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
 gdUpdateUI();
+initGeminiKey();
 </script>
 </body>
 </html>

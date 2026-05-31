@@ -7,7 +7,7 @@ Dokumen ini berfungsi sebagai navigasi utama, peta modul, dan penjelas logika da
 ## 1. Project Summary
 
 * **Tujuan Aplikasi**: 
-  Aplikasi SPA (*Single Page Application*) desktop tanpa backend untuk membantu kreator afiliasi TikTok Shop memantau analitik performa konten, mengelola master produk, menyusun jadwal posting otomatis secara strategis, memelihara bank materi video (Hook/Proof/CTA), serta memformulasikan naskah video kreatif memanfaatkan integrasi AI Claude.
+  Aplikasi SPA (*Single Page Application*) desktop tanpa backend untuk membantu kreator afiliasi TikTok Shop memantau analitik performa konten, mengelola master produk, menyusun jadwal posting otomatis secara strategis, memelihara bank materi video (Hook/Proof/CTA), serta memformulasikan naskah video kreatif memanfaatkan integrasi Gemini API.
 * **Tech Stack**:
   * **Core**: HTML5, Vanilla JavaScript, CSS Modern (dengan variabel tema gelap, glassmorphism, dan animasi mikro).
   * **CDN Libraries**:
@@ -16,7 +16,8 @@ Dokumen ini berfungsi sebagai navigasi utama, peta modul, dan penjelas logika da
   * **Storage (Local)**:
     * `localStorage` key `affos4`: Menyimpan database utama aplikasi (`S` state).
     * `localStorage` key `affos_gd`: Menyimpan token otorisasi (`token`) dan file ID Google Drive (`fileId`).
-  * **AI Integration**: Pemanggilan API langsung ke Anthropic Claude (`https://api.anthropic.com/v1/messages`) dengan model `claude-sonnet-4-20250514` langsung dari browser client.
+    * `localStorage` key `gemini_api_key`: Menyimpan custom Gemini API Key pengguna.
+  * **AI Integration**: Pemanggilan API langsung ke Google Gemini API (`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`) dengan model `gemini-2.0-flash`. Mendukung kustomisasi API Key dari sidebar yang disimpan secara aman di `localStorage`.
   * **Typography**: `@import` Google Fonts (`Raleway`, `DM Sans`, `IBM Plex Mono`) ([index.html:L10](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L10)).
 * **Pola Arsitektur**:
   * **SPA Modular**: Navigasi diatur secara manual oleh fungsi `goPage(id, el)` ([index.html:L909](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L909)) dengan memicu manipulasi kelas CSS `.act` pada blok halaman dan menu navigasi.
@@ -47,10 +48,10 @@ $$\text{Klik Button "Generate"} \xrightarrow{\text{UI Event}} \text{genSched()} 
    * **Slot Biasa** $\rightarrow$ Diisi produk `MONITOR` atau pool produk aktif yang tersisa.
 6. Algoritma melakukan alokasi indeks hook, proof, dan CTA acak untuk slot tersebut, lalu me-render visualisasi jadwal dengan fungsi `renderSchedOutput()` ([index.html:L1336](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1336)).
 
-### C. Alur Pembuatan Script Video (Claude AI Integration)
-$$\text{Form Generator / Master Produk} \xrightarrow{\text{UI Event}} \text{doGenDesc() / genScript()} \xrightarrow{\text{Direct Fetch}} \text{Claude API (POST)} \xrightarrow{\text{JSON Parse}} \text{Tampilkan / Simpan ke } S.\text{products}[i].\text{descVariants} \xrightarrow{\text{save()}} \text{Storage + Drive sync}$$
-1. **Melalui Master Produk**: Tombol `✦ Generate Isi Konten (AI)` memicu modal interaktif via `openGenDesc(pi)` ([index.html:L1184](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1184)). Klik proses memanggil `doGenDesc()` ([index.html:L1207](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1207)), men-fetch 3 variasi bagian inti script video (body) dari Claude API, lalu menyimpannya langsung ke array `descVariants` produk.
-2. **Melalui Standalone Generator**: Klik button `✦ Generate 3 Variasi` memanggil `genScript()` ([index.html:L1490](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1490)), mengirim parameter produk ke Claude API untuk merancang 3 skrip terstruktur utuh (terdiri atas bagian Hook, Isi, Proof, dan CTA). Hasilnya dirender di panel output, di mana pengguna dapat mengklik tombol "Simpan ke Master" yang akan memanggil `saveVarToMaster(varIdx)` ([index.html:L1577](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1577)) untuk memindahkan teks body isi ke database produk.
+### C. Alur Pembuatan Script Video (Gemini AI Integration)
+$$\text{Form Generator / Master Produk} \xrightarrow{\text{UI Event}} \text{doGenDesc() / genScript()} \xrightarrow{\text{Direct Fetch}} \text{Gemini API (POST)} \xrightarrow{\text{JSON Parse}} \text{Tampilkan / Simpan ke } S.\text{products}[i].\text{descVariants} \xrightarrow{\text{save()}} \text{Storage + Drive sync}$$
+1. **Melalui Master Produk**: Tombol `✦ Generate Isi Konten (AI)` memicu modal interaktif via `openGenDesc(pi)` ([index.html:L1184](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1184)). Klik proses memanggil `doGenDesc()` ([index.html:L1207](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1207)), men-fetch 3 variasi bagian inti script video (body) dari Gemini API (`callGemini()`), lalu menyimpannya langsung ke array `descVariants` produk.
+2. **Melalui Standalone Generator**: Klik button `✦ Generate 3 Variasi` memanggil `genScript()` ([index.html:L1490](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1490)), mengirim parameter produk ke Gemini API (`callGemini()`) untuk merancang 3 skrip terstruktur utuh (terdiri atas bagian Hook, Isi, Proof, dan CTA). Hasilnya dirender di panel output, di mana pengguna dapat mengklik tombol "Simpan ke Master" yang akan memanggil `saveVarToMaster(varIdx)` ([index.html:L1577](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1577)) untuk memindahkan teks body isi ke database produk.
 
 ### D. Alur Pemeringkatan & Klasifikasi (Dual Scoring System)
 $$\text{Data Trigger (Import / Save)} \rightarrow \text{refreshScores()} \xrightarrow{\text{Auto-Detect Mode}} \begin{cases} \ge 3 \text{ produk berdata} \rightarrow \text{scoreTOPSIS()} \\ < 3 \text{ produk berdata} \rightarrow \text{scoreBenchmark()} \end{cases} \rightarrow \text{classifyP()} \rightarrow \text{Sort \& Badge} \xrightarrow{\text{save()}} \text{Storage + Drive sync}$$
@@ -237,7 +238,7 @@ content = {
 ```
 
 ### Hardcoded Configuration
-* **Claude Model**: `claude-sonnet-4-20250514` ([index.html:L1233](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1233), [index.html:L1525](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1525)).
+* **Gemini Model**: `gemini-2.0-flash` ([index.html:L919](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L919)).
 * **Google Drive Client ID**: `486908118665-jikf3m2l1mombrbmh3mqujmergsqfigc.apps.googleusercontent.com` ([index.html:L654](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L654)).
 * **Google Drive Target Scope**: `https://www.googleapis.com/auth/drive.appdata` (AppData Folder terisolasi) ([index.html:L655](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L655)).
 * **Google Drive Target File Name**: `affiliateos_data.json` ([index.html:L656](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L656)).
@@ -246,10 +247,10 @@ content = {
 
 ## 6. External Integrations
 
-1. **Anthropic Claude API**:
-   * **Endpoint**: `POST https://api.anthropic.com/v1/messages` ([index.html:L1233](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1233), [index.html:L1525](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1525)).
-   * **Payload**: Direct POST fetch dari browser client.
-   * **Model**: `'claude-sonnet-4-20250514'`
+1. **Google Gemini API**:
+   * **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=API_KEY` ([index.html:L920](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L920)).
+   * **Payload**: Direct POST fetch dari browser client dengan parameter API Key dinamis dari sidebar (`localStorage.getItem('gemini_api_key')`).
+   * **Model**: `'gemini-2.0-flash'`
    * **Output**: JSON Array string (dibersihkan dari wrapper Markdown triple backtick ` ```json ` sebelum diparsing oleh engine).
 2. **Google Drive API**:
    * **Scopes**: `drive.appdata` (Akses folder data internal aplikasi, tidak bisa mengakses berkas personal Drive lain milik pengguna).
@@ -326,28 +327,16 @@ Menggunakan fungsi `classifyP()` ([index.html:L983](file:///Users/mhmdrzki/Docum
 | 🔵 **POTENTIAL**| TOPSIS $\ge 0.30$ **ATAU** (CTR $> 0.5\%$ **DAN** Video $\ge 2$) **ATAU** (Sold $\ge 1$ **DAN** TOPSIS $\ge 0.15$) | Video $\ge 3$ **ATAU** (Video $\ge 2$ **DAN** CTR $> 0$) | `10:00/14:00` (Mid) |
 | 🟡 **MONITOR**   | Data analitik di bawah kriteria di atas (data minim) | Data di bawah kriteria di atas | `08:00/12:00` (Test) |
 | 🔴 **DROP**      | Video $\ge 3$ **DAN** MaxViews $< 2000$ **DAN** CTR $= 0$ **DAN** CTOR $= 0$ **DAN** Sold $= 0$ | Video $\ge 3$ **DAN** MaxViews $< 2000$ **DAN** CTR $= 0$ **DAN** Sold $= 0$ | `—` (Hentikan Posting) |
-
 ---
 
 ## 8. Risks / Blind Spots
 
 Berikut beberapa titik risiko kritis yang terdeteksi di dalam file tunggal `index.html` dan perlu diperhatikan pada tahap pengembangan berikutnya:
 
-1. **Blind Spot Utama: Auth Header Claude API Tidak Ada (Pasti Gagal)**:
-   * **Lokasi**: `doGenDesc()` ([index.html:L1233](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1233)) dan `genScript()` ([index.html:L1525](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L1525)).
-   * **Masalah**: Fetch request ke API Anthropic Claude dikirimkan langsung dari browser client menggunakan parameter header:
-     ```javascript
-     headers: {'Content-Type': 'application/json'}
-     ```
-     Pemanggilan API ini **tidak memuat header otorisasi API Key** (`X-API-Key` atau `Authorization`). Permintaan ini **dipastikan gagal** dengan kode kesalahan *401 Unauthorized* kecuali jika browser pengguna memiliki ekstensi penyuntik header khusus atau Claude API dilewatkan ke proxy lokal rahasia yang tidak terdokumentasi di kode HTML ini.
-   * **Solusi**: Diperlukan implementasi input field API Key ber-status sensitif di bagian pengaturan/sidebar UI, disimpan aman di LocalStorage, lalu dilewatkan ke header fetch request:
-     ```javascript
-     headers: {
-       'Content-Type': 'application/json',
-       'x-api-key': localStorage.getItem('anthropic_api_key'),
-       'anthropic-dangerous-direct-overwrite-fields': 'true' // Mengizinkan browser direct call
-     }
-     ```
+1. **Penanganan API Key yang Bocor / Kuota Habis**:
+   * **Lokasi**: `callGemini()` ([index.html:L922](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L922)).
+   * **Masalah**: API Key bawaan yang bocor akan dinonaktifkan oleh Google atau kuotanya disetel ke 0, yang memicu error status HTTP 429 atau 403.
+   * **Solusi**: Telah diimplementasikan input field API Key kustom di bagian sidebar UI yang disimpan aman di LocalStorage, lalu dimuat secara dinamis saat melakukan request ke API. Jika terjadi error 429/403, sistem mendeteksinya secara proaktif dan memberikan instruksi ramah bagi pengguna untuk memasukkan key mereka sendiri.
 
 2. **Risiko Hilang Data Offline (State Overwritten Tanpa Merge)**:
    * **Lokasi**: `gdLoadFromDrive()` ([index.html:L779](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L779)).
