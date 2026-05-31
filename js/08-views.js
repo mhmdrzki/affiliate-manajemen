@@ -216,7 +216,7 @@ function importRows(rows,filename){
     const periode=String(fk(row,'periode data','periode')||'').trim();
 
     // Dedup
-    const dupIdx=S.contents.findIndex(c=>c.produk.toLowerCase()===produk.toLowerCase()&&c.tanggal===tanggal&&tanggal!=='');
+    const dupIdx=S.contents.findIndex(c=>c.produk.toLowerCase()===produk.toLowerCase()&&c.tanggal===tanggal&&tanggal!==''&&c.durasi===durasi);
     if(dupIdx>=0){
       S.contents[dupIdx].gmv=Math.max(S.contents[dupIdx].gmv||0,gmv);
       S.contents[dupIdx].itemsSold=Math.max(S.contents[dupIdx].itemsSold||0,sold);
@@ -244,16 +244,6 @@ function importRows(rows,filename){
       prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'};
       S.products.push(prod);
     }
-    prod.nVideo=(prod.nVideo||0)+1;
-    prod.maxViews=Math.max(prod.maxViews||0,views);
-    if(!prod.uploadDates)prod.uploadDates=[];
-    if(tanggal&&!prod.uploadDates.includes(tanggal))prod.uploadDates.push(tanggal);
-    prod.spreadDays=prod.uploadDates.length;
-    prod.avgViews=prod.nVideo>1?((prod.avgViews||0)*(prod.nVideo-1)+views)/prod.nVideo:views;
-    if(sold>0)prod.totalItemsSold=(prod.totalItemsSold||0)+sold;
-    if(gmv>0){prod.totalGMV=(prod.totalGMV||0)+gmv;prod.gmvAktif=true;}
-    prod.avgCTR=prod.avgCTR?(prod.avgCTR*.7+ctr*.3):ctr;
-    prod.avgCTOR=prod.avgCTOR?(prod.avgCTOR*.7+ctor*.3):ctor;
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
     S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,gmv,itemsSold:sold,ctr,ctor,aov,views,link,estK,ts:Date.now()});
     added++;
@@ -286,10 +276,102 @@ function clearAll(){
 }
 
 // ============================================================
+// IMPORT BENCHMARK
+// ============================================================
+function ddrBench(e){e.preventDefault();dlv('bz-m');const f=e.dataTransfer.files[0];if(f)processBenchmarkFile(f);}
+function handleBenchmarkFile(inp){if(inp.files[0])processBenchmarkFile(inp.files[0]);}
+
+function processBenchmarkFile(file){
+  if(file.name.match(/\.xlsx?$/i) && typeof XLSX === 'undefined') {
+    toast('⚠️ SheetJS belum dimuat'); return;
+  }
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      let rows=[];
+      if(file.name.toLowerCase().endsWith('.csv')) rows=parseCSV(new TextDecoder().decode(e.target.result));
+      else{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      }
+      importBenchmark(rows, file.name);
+    }catch(err){toast('Error: '+err.message);}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function importBenchmark(rows, filename) {
+  if (!S.benchmarks) S.benchmarks = [];
+  let added = 0;
+  rows.forEach(row => {
+    const nama = String(fk(row, 'nama produk', 'namaproduk', 'produk', 'product') || '').trim();
+    if (!nama || nama.length < 2) return;
+
+    const hari = String(fk(row, 'hari') || '').trim();
+    const tanggal = String(fk(row, 'tanggal upload', 'tanggal', 'date') || '').trim();
+    const jam = String(fk(row, 'jam upload', 'jam', 'waktu', 'time') || '').trim();
+    const harga = pv(fk(row, 'harga jual', 'harga', 'price'));
+    const rating = pv(fk(row, 'rating'));
+    const terjual = pv(fk(row, 'total terjual', 'terjual', 'sold'));
+    const label = String(fk(row, 'label prestasi', 'label') || '-').trim();
+    const desc = String(fk(row, 'deskripsi', 'description') || '').trim();
+    const durasi = String(fk(row, 'durasi', 'duration') || '').trim();
+    const views = pv(fk(row, 'views'));
+    const likes = pv(fk(row, 'likes'));
+    const komentar = pv(fk(row, 'komentar'));
+    const share = pv(fk(row, 'share'));
+    const er = pv(fk(row, 'er', '_er'));
+    const link = String(fk(row, 'link', 'link video') || '').trim();
+
+    const dupIdx = S.benchmarks.findIndex(b =>
+      b.nama.toLowerCase() === nama.toLowerCase() &&
+      b.tanggal === tanggal && b.durasi === durasi);
+      
+    if (dupIdx >= 0) {
+      Object.assign(S.benchmarks[dupIdx], { 
+        views: Math.max(S.benchmarks[dupIdx].views || 0, views), 
+        terjual: Math.max(S.benchmarks[dupIdx].terjual || 0, terjual) 
+      });
+      return;
+    }
+
+    S.benchmarks.push({ nama, hari, tanggal, jam, harga, rating, terjual, label, desc, durasi, views, likes, komentar, share, er, link });
+    added++;
+  });
+
+  analyzeBenchPatterns();
+  save();
+  renderBench();
+  updateBadges();
+  toast(`+${added} data benchmark diimpor`);
+}
+
+// ============================================================
 // BENCHMARK
 // ============================================================
+let currentBenchData = BENCH;
+
 function renderBench(){
-  document.getElementById('tbody-bench').innerHTML=BENCH.map(p=>{
+  const src = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : null;
+  currentBenchData = BENCH;
+  
+  if (src) {
+    const agg = {};
+    src.forEach(b => {
+      const key = b.nama.toLowerCase();
+      if (!agg[key]) agg[key] = { nama: b.nama, jenis: (b.nama.split(' ')[0] || 'Produk'), harga: b.harga, komisi: Math.round((b.harga||0) * 0.1), nV: 0, uploadDates: [], maxV: 0, totalV: 0, label: b.label };
+      agg[key].nV++;
+      if (b.tanggal && !agg[key].uploadDates.includes(b.tanggal)) agg[key].uploadDates.push(b.tanggal);
+      agg[key].maxV = Math.max(agg[key].maxV, b.views || 0);
+      agg[key].totalV += (b.views || 0);
+      if (b.label !== '-') agg[key].label = b.label;
+    });
+    currentBenchData = Object.values(agg).map(p => ({
+      nama: p.nama, jenis: p.jenis, komisi: p.komisi, harga: p.harga, nV: p.nV, sp: p.uploadDates.length, maxV: p.maxV, avgV: Math.round(p.totalV / p.nV), label: p.label
+    })).sort((a,b)=> b.nV - a.nV);
+  }
+
+  document.getElementById('tbody-bench').innerHTML=currentBenchData.map(p=>{
     const k=p.nV>=5?'WINNING':p.nV>=3?'POTENTIAL':'MONITOR';
     const sig=p.nV>=7?'🔥 Push intensif':p.nV>=5?'✅ Push kuat':p.nV>=3?'↑ Mulai push':p.maxV>10000?'⚡ GMV Max':'👀 Test';
     return`<tr>
@@ -342,7 +424,7 @@ function copyOneBench(p){
   refreshScores();save();toast('Disalin: '+p.jenis);
 }
 function copyAllBench(){
-  let a=0;BENCH.forEach(p=>{if(!S.products.find(pr=>pr.nama.toLowerCase()===p.nama.toLowerCase())){copyOneBench(p);a++;}});
+  let a=0;currentBenchData.forEach(p=>{if(!S.products.find(pr=>pr.nama.toLowerCase()===p.nama.toLowerCase())){copyOneBench(p);a++;}});
   toast(a+' produk disalin');
 }
 function adoptBench(){

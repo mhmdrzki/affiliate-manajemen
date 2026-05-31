@@ -21,8 +21,8 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 
 ## 2. Core Logic Flow (Function-Level Flowchart)
 
-* **Impor Data Analitik**: Drop File ➔ `handleFile()` ([js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)) ➔ `processFile()` ➔ SheetJS ➔ `importRows()` (dedup & EMA CTR/CTOR) ➔ `refreshScores()` ([js/03-scoring.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/03-scoring.js)) ➔ `save()` ➔ `gdScheduleSync()`
-* **Scoring & Klasifikasi**: `refreshScores()` ➔ Cek data CTR/CTOR ➔ `scoreTOPSIS()` (bila $\ge$ 3 produk ber-data) ATAU `scoreBenchmark()` (fallback SAW) ➔ `classifyP()` (WINNING/POTENTIAL/MONITOR/DROP) ➔ Urutkan `S.products` ➔ `save()`
+* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/03-scoring.js))
+* **Scoring & Klasifikasi**: `refreshScores()` ➔ `recomputeProductStats()` (Agregasi ulang dgn time-decay 60 hari) ➔ `scoreTOPSIS()` / `scoreBenchmark()` ➔ `classifyP()` (WINNING/POTENTIAL/UJI COBA/MONITOR/DROP) ➔ Urutkan `S.products` ➔ `save()`
 * **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/07-jadwal.js)) ➔ Alokasi slot (`PATS`/`PRIME`/`MID`) ➔ `buildSlotScript()` ➔ `renderSchedOutput()`
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
 * **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
@@ -92,4 +92,6 @@ Semua risiko teridentifikasi dari versi sebelumnya (Deduplikasi, Ketergantungan 
 - ✅ **Sesi Drive Expired** dimitigasi dengan proaktif timer mematikan sesi tepat 1 jam dan UI persist di sidebar untuk reconnect.
 - ✅ **CDN Luring** dimitigasi dengan fallback peringatan ramah saat pengguna mencoba impor `.xlsx` atau menghubungkan Drive tanpa koneksi.
 
-*Saat ini belum ada risiko/blind spots baru yang teridentifikasi.*
+- ✅ **Akumulasi Mingguan Inakurat** diselesaikan dengan `recomputeProductStats()` yang menghitung ulang dari nol menggunakan data mentah `S.contents` (Scratch Aggregation) plus Time-Decay factor 60 hari.
+- ✅ **Dedup Key Lemah** diselesaikan dengan menggunakan `nama + tanggal + durasi`.
+- ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.

@@ -129,6 +129,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb act" onclick="tabSw(this,'tp-all')">Semua</button>
     <button class="tb" onclick="tabSw(this,'tp-w')">🟢 Winning</button>
     <button class="tb" onclick="tabSw(this,'tp-p')">🔵 Potential</button>
+    <button class="tb" onclick="tabSw(this,'tp-u')">🔵 Uji Coba</button>
     <button class="tb" onclick="tabSw(this,'tp-m')">🟡 Monitor</button>
     <button class="tb" onclick="tabSw(this,'tp-d')">🔴 Drop</button>
     <button class="btn btn-p btn-sm" style="margin-left:auto;align-self:center" onclick="openAddProd()">+ Tambah</button>
@@ -136,6 +137,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
   <div class="tp act" id="tp-all"><div id="prod-all-list"></div></div>
   <div class="tp" id="tp-w"><div id="prod-w-list"></div></div>
   <div class="tp" id="tp-p"><div id="prod-p-list"></div></div>
+  <div class="tp" id="tp-u"><div id="prod-u-list"></div></div>
   <div class="tp" id="tp-m"><div id="prod-m-list"></div></div>
   <div class="tp" id="tp-d"><div id="prod-d-list"></div></div>
 </div>
@@ -331,6 +333,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb act" onclick="tabSw(this,'bt-prod')">Pola Produk</button>
     <button class="tb" onclick="tabSw(this,'bt-jadwal')">Pola Jadwal</button>
     <button class="tb" onclick="tabSw(this,'bt-ins')">Insight</button>
+    <button class="tb" onclick="tabSw(this,'bt-import')">Import</button>
   </div>
   <div class="tp act" id="bt-prod">
     <div class="card" style="padding:0">
@@ -354,6 +357,21 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     </div>
   </div>
   <div class="tp" id="bt-ins"><div id="b-ins"></div></div>
+  <div class="tp" id="bt-import">
+    <div class="card">
+      <div class="card-t">↑ Import Benchmark Data</div>
+      <div class="al al-i gap-sm" style="font-size:10px; margin-bottom: 10px;">
+        Format file: Excel / CSV hasil riset top affiliator (30 hari terakhir).<br>
+        Kolom wajib: Nama Produk, Hari, Tanggal Upload, Jam Upload, Durasi, Total Terjual, Views.
+      </div>
+      <div class="iz" id="bz-m" ondragover="dov(event,'bz-m')" ondragleave="dlv('bz-m')" ondrop="ddrBench(event)" onclick="document.getElementById('fi-bench').click()">
+        <div class="iz-ic">↑</div>
+        <div class="iz-t">Drop file data kompetitor</div>
+        <div class="iz-s">.xlsx / .csv</div>
+      </div>
+      <input type="file" id="fi-bench" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBenchmarkFile(this)">
+    </div>
+  </div>
 </div>
 
 <!-- ======== PANDUAN ======== -->

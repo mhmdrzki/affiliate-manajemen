@@ -19,8 +19,35 @@ const BENCH=[
   {nama:"Trondheim Jaket Jeans Travis Black",jenis:"Jaket Jeans",komisi:19500,harga:194000,nV:1,sp:1,maxV:41200,avgV:41200,label:"-"},
   {nama:"Celana Corduroy Baggy Unisex",jenis:"Celana",komisi:13813,harga:129842,nV:2,sp:2,maxV:30500,avgV:18000,label:"Top rated #11"},
 ];
-const BENCH_JAM=[{j:"08:00",n:18},{j:"10:00",n:37},{j:"12:00",n:28},{j:"14:00",n:30},{j:"16:00",n:23},{j:"18:00",n:18}];
-const BENCH_HARI=[{h:"Senin",n:28,av:4190},{h:"Selasa",n:24,av:3434},{h:"Rabu",n:26,av:3888},{h:"Kamis",n:20,av:2149},{h:"Jumat",n:22,av:1875},{h:"Sabtu",n:29,av:4843},{h:"Minggu",n:28,av:4499}];
+let BENCH_JAM=[{j:"08:00",n:18},{j:"10:00",n:37},{j:"12:00",n:28},{j:"14:00",n:30},{j:"16:00",n:23},{j:"18:00",n:18}];
+let BENCH_HARI=[{h:"Senin",n:28,av:4190},{h:"Selasa",n:24,av:3434},{h:"Rabu",n:26,av:3888},{h:"Kamis",n:20,av:2149},{h:"Jumat",n:22,av:1875},{h:"Sabtu",n:29,av:4843},{h:"Minggu",n:28,av:4499}];
+
+function analyzeBenchPatterns() {
+  const src = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : null;
+  if (!src) return { jam: BENCH_JAM, hari: BENCH_HARI };
+
+  const jamMap = {};
+  src.forEach(b => { 
+    const j = (b.jam || '').substring(0, 5);
+    if (j) jamMap[j] = (jamMap[j] || 0) + 1; 
+  });
+  const jam = Object.entries(jamMap).map(([j, n]) => ({ j, n })).sort((a, b) => a.j.localeCompare(b.j));
+
+  const hariMap = {};
+  src.forEach(b => { 
+    const h = b.hari || '';
+    if (h) {
+      if (!hariMap[h]) hariMap[h] = { count: 0, totalViews: 0 };
+      hariMap[h].count++;
+      hariMap[h].totalViews += (b.views || 0);
+    }
+  });
+  const hari = Object.entries(hariMap).map(([h, d]) => ({ h, n: d.count, av: Math.round(d.totalViews / d.count) }));
+
+  BENCH_JAM = jam.length ? jam : BENCH_JAM;
+  BENCH_HARI = hari.length ? hari : BENCH_HARI;
+  return { jam: BENCH_JAM, hari: BENCH_HARI };
+}
 
 // ============================================================
 // SLOT PATTERNS
@@ -79,6 +106,7 @@ function scoreTOPSIS(ps){
 
 // ── CLASSIFY ─────────────────────────────────────────────────
 function classifyP(p,mode){
+  if ((p.nVideo || 0) === 0) return 'UJI COBA';
   const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
   const ts=p.topsisScore||0;
@@ -97,7 +125,7 @@ function classifyP(p,mode){
   if(n>=3||(n>=2&&ctr>0))return 'POTENTIAL';
   return 'MONITOR';
 }
-function slotR(k){return k==='WINNING'?'16:00/18:00':k==='POTENTIAL'?'10:00/14:00':k==='DROP'?'—':'08:00/12:00';}
+function slotR(k){return k==='WINNING'?'16:00/18:00':k==='POTENTIAL'?'10:00/14:00':k==='DROP'?'—':k==='UJI COBA'?'08:00/10:00':'08:00/12:00';}
 
 // ── ANOMALY DETECTION ────────────────────────────────────────
 function detectAnomalies(products){
@@ -121,10 +149,77 @@ function detectAnomalies(products){
   return al;
 }
 
+// ── RECOMPUTE AGGREGATIONS ───────────────────────────────────
+function parseDate(ds) {
+  if(!ds) return 0;
+  if(ds.includes('/')) {
+    const p = ds.split('/');
+    if(p.length===3) return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
+  }
+  return new Date(ds).getTime() || 0;
+}
+
+function recomputeProductStats() {
+  const now = Date.now();
+  S.products.forEach(p => {
+    p.nVideo = 0; p.spreadDays = 0; p.maxViews = 0; p.avgViews = 0;
+    p.totalItemsSold = 0; p.totalGMV = 0; p.avgCTR = 0; p.avgCTOR = 0;
+    p.uploadDates = []; p.gmvAktif = false;
+  });
+
+  const byProd = {};
+  S.contents.forEach(c => {
+    const key = c.produk.toLowerCase();
+    if (!byProd[key]) byProd[key] = [];
+    byProd[key].push(c);
+  });
+
+  S.products.forEach(prod => {
+    const rows = byProd[prod.nama.toLowerCase()] || [];
+    if (!rows.length) return;
+
+    rows.sort((a, b) => {
+      const da = a.tanggal ? parseDate(a.tanggal) : a.ts;
+      const db = b.tanggal ? parseDate(b.tanggal) : b.ts;
+      return da - db;
+    });
+
+    let totalWeightedViews = 0, totalWeight = 0;
+
+    rows.forEach(c => {
+      const postDate = c.tanggal ? parseDate(c.tanggal) : c.ts;
+      const ageDays = Math.max(0, (now - postDate) / 86400000);
+      const decay = Math.max(0.2, 1 - ageDays / 60);
+
+      prod.nVideo++;
+      prod.maxViews = Math.max(prod.maxViews, c.views || 0);
+      if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
+        prod.uploadDates.push(c.tanggal);
+
+      totalWeightedViews += (c.views || 0) * decay;
+      totalWeight += decay;
+      prod.totalItemsSold += (c.itemsSold || 0) * decay;
+      prod.totalGMV += (c.gmv || 0) * decay;
+      if ((c.gmv || 0) > 0) prod.gmvAktif = true;
+
+      prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
+      prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.7 + (c.ctor || 0) * 0.3) : (c.ctor || 0);
+    });
+
+    prod.spreadDays = prod.uploadDates.length;
+    prod.avgViews = totalWeight > 0 ? totalWeightedViews / totalWeight : 0;
+    prod.totalItemsSold = Math.round(prod.totalItemsSold);
+    prod.totalGMV = Math.round(prod.totalGMV);
+  });
+}
+
 // ── MAIN REFRESH ─────────────────────────────────────────────
 function refreshScores(){
   const ps=S.products;
   if(!ps.length){updateBadges();return;}
+  recomputeProductStats();
+  analyzeBenchPatterns();
+  
   // determine scoring mode
   const hasCommerce=ps.filter(p=>(p.avgCTR||0)>0||(p.avgCTOR||0)>0||(p.totalItemsSold||0)>0).length;
   const useMode=hasCommerce>=3?'topsis':'benchmark';
@@ -134,14 +229,14 @@ function refreshScores(){
   else scoreBenchmark(ps);
   // classify & sort
   ps.forEach(p=>{p.klasifikasi=classifyP(p,useMode);p.slotRek=slotR(p.klasifikasi);});
-  const ord={WINNING:0,POTENTIAL:1,MONITOR:2,DROP:3};
+  const ord={WINNING:0,POTENTIAL:1,'UJI COBA':2,MONITOR:3,DROP:4};
   ps.sort((a,b)=>{const d=ord[a.klasifikasi]-ord[b.klasifikasi];return d!==0?d:(b.benchScore||0)-(a.benchScore||0);});
   updateBadges();save();
 }
 
 // ── BADGE HELPER ─────────────────────────────────────────────
 function bH(k){
-  const m={WINNING:'bw',POTENTIAL:'bp',MONITOR:'bm',DROP:'bd-c'};
+  const m={WINNING:'bw',POTENTIAL:'bp',MONITOR:'bm',DROP:'bd-c','UJI COBA':'bgv'};
   return `<span class="badge ${m[k]||'bm'}">${k}</span>`;
 }
 
@@ -149,5 +244,5 @@ function bH(k){
 function updateBadges(){
   document.getElementById('nb-d').textContent=S.contents.filter(c=>(c.itemsSold||0)>0||(c.gmv||0)>0).length;
   document.getElementById('nb-p').textContent=S.products.length;
-  document.getElementById('nb-b').textContent=BENCH.length;
+  document.getElementById('nb-b').textContent=(S.benchmarks && S.benchmarks.length) ? S.benchmarks.length : BENCH.length;
 }

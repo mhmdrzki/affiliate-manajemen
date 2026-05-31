@@ -111,7 +111,7 @@ const DEF_CTAS=[
 // ============================================================
 // STATE
 // ============================================================
-const INIT_S={products:[],contents:[],hooks:[...DEF_HOOKS],proofs:[...DEF_PROOFS],ctas:[...DEF_CTAS],importHistory:[],scoringMode:'benchmark',lastModified:0};
+const INIT_S={products:[],contents:[],benchmarks:[],hooks:[...DEF_HOOKS],proofs:[...DEF_PROOFS],ctas:[...DEF_CTAS],importHistory:[],scoringMode:'benchmark',lastModified:0};
 let S=JSON.parse(JSON.stringify(INIT_S));
 try{const sv=localStorage.getItem('affos4');if(sv){const parsed=JSON.parse(sv);S={...INIT_S,...parsed};if(!S.proofs||!S.proofs.length)S.proofs=[...DEF_PROOFS];}}catch(e){}
 function save(){S.lastModified=Date.now();try{localStorage.setItem('affos4',JSON.stringify(S));}catch(e){} gdScheduleSync(); }

@@ -42,10 +42,11 @@ function genSched(){
   if(!start){toast('Pilih tanggal');return;}
 
   const slots=PATS[pat]||PATS['6'];
-  const winning=S.products.filter(p=>p.klasifikasi==='WINNING').sort((a,b)=>b.score-a.score);
-  const potential=S.products.filter(p=>p.klasifikasi==='POTENTIAL').sort((a,b)=>b.score-a.score);
-  const monitor=S.products.filter(p=>p.klasifikasi==='MONITOR').sort((a,b)=>b.score-a.score);
-  const active=S.products.filter(p=>p.klasifikasi!=='DROP').sort((a,b)=>b.score-a.score);
+  const winning=S.products.filter(p=>p.klasifikasi==='WINNING').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const potential=S.products.filter(p=>p.klasifikasi==='POTENTIAL').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const monitor=S.products.filter(p=>p.klasifikasi==='MONITOR').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const ujiCoba=S.products.filter(p=>p.klasifikasi==='UJI COBA').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const active=S.products.filter(p=>p.klasifikasi!=='DROP').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
 
   function pick(pool,idx){
     if(pool.length>0)return pool[idx%pool.length];
@@ -62,7 +63,7 @@ function genSched(){
       let prod,type;
       if(PRIME_SLOTS.includes(time)){prod=pick(winning,d*3+wi);type='prime';wi++;}
       else if(MID_SLOTS.includes(time)){prod=pick(potential,d*3+pi)||pick(winning,pi);type='pot';pi++;}
-      else{prod=pick(monitor,d*2+mi)||pick(active,mi);type='test';mi++;}
+      else{prod=pick(ujiCoba,d*2+mi)||pick(monitor,d*2+mi)||pick(active,mi);type='test';mi++;}
       return{time,prod,type,hIdx:Math.floor(Math.random()*Math.max(S.hooks.length,1)),pfIdx:Math.floor(Math.random()*Math.max(S.proofs.length,1)),ctaIdx:Math.floor(Math.random()*Math.max(S.ctas.length,1)),descIdx:0,sopen:false};
     });
     schedData.push({dt,dn,slots:daySlots,open:true});

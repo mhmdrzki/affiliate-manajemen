@@ -9,7 +9,7 @@ Dependensi: S, save, callGemini (02-state); bH, refreshScores (03-scoring); fmt 
 // ============================================================
 function renderProduk(){
   const all=S.products;
-  const groups={all,w:all.filter(p=>p.klasifikasi==='WINNING'),p:all.filter(p=>p.klasifikasi==='POTENTIAL'),m:all.filter(p=>p.klasifikasi==='MONITOR'),d:all.filter(p=>p.klasifikasi==='DROP')};
+  const groups={all,w:all.filter(p=>p.klasifikasi==='WINNING'),p:all.filter(p=>p.klasifikasi==='POTENTIAL'),m:all.filter(p=>p.klasifikasi==='MONITOR'),u:all.filter(p=>p.klasifikasi==='UJI COBA'),d:all.filter(p=>p.klasifikasi==='DROP')};
   Object.entries(groups).forEach(([k,ps])=>renderPList(`prod-${k}-list`,ps));
 }
 
