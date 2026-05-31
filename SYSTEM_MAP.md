@@ -17,7 +17,7 @@ Dokumen ini berfungsi sebagai navigasi utama, peta modul, dan penjelas logika da
     * `localStorage` key `affos4`: Menyimpan database utama aplikasi (`S` state).
     * `localStorage` key `affos_gd`: Menyimpan token otorisasi (`token`) dan file ID Google Drive (`fileId`).
     * `localStorage` key `gemini_api_key`: Menyimpan custom Gemini API Key pengguna.
-  * **AI Integration**: Pemanggilan API langsung ke Google Gemini API (`https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`). Mendukung kustomisasi API Key secara lokal (`localStorage`), dan **pemilihan model** (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`) dari UI Sidebar untuk resolusi _Rate Limit_ (429) pada akun gratisan.
+  * **AI Integration**: Pemanggilan API langsung ke Google Gemini API (`https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`). Mendukung kustomisasi API Key secara lokal (`localStorage`), dan **pemilihan model** (`gemini-2.5-flash`, `gemini-3.0-flash`, `gemini-2.0-flash`) dari UI Sidebar untuk resolusi deprecation / _Rate Limit_ (429) pada akun gratisan.
   * **Typography**: `@import` Google Fonts (`Raleway`, `DM Sans`, `IBM Plex Mono`) ([index.html:L10](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L10)).
 * **Pola Arsitektur**:
   * **SPA Modular**: Navigasi diatur secara manual oleh fungsi `goPage(id, el)` ([index.html:L909](file:///Users/mhmdrzki/Documents/affiliate-manajemen/index.html#L909)) dengan memicu manipulasi kelas CSS `.act` pada blok halaman dan menu navigasi.
