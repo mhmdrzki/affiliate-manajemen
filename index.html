@@ -299,9 +299,9 @@ a.tlink:hover{text-decoration:underline}
       <button onclick="saveGeminiKey()" style="padding:5px 8px; font-size:10px; border-radius:var(--r); background:var(--ac); color:#fff; border:none; cursor:pointer; font-family:var(--fb); font-weight:500; transition:background .1s;">Set</button>
     </div>
     <select id="gemini-model-sel" onchange="saveGeminiModel()" style="width:100%; background:var(--bg3); border:1px solid var(--bd2); border-radius:var(--r); color:var(--tx2); padding:5px 6px; font-size:10px; font-family:var(--fm); cursor:pointer; outline:none;">
-      <option value="gemini-1.5-flash">gemini-1.5-flash (Stabil & Cepat)</option>
-      <option value="gemini-2.0-flash">gemini-2.0-flash (Terbaru)</option>
-      <option value="gemini-1.5-pro">gemini-1.5-pro (Lebih Pintar)</option>
+      <option value="gemini-2.0-flash">gemini-2.0-flash (Terbaru / Default)</option>
+      <option value="gemini-1.5-flash">gemini-1.5-flash (Alternatif)</option>
+      <option value="gemini-1.5-pro">gemini-1.5-pro (Lebih Akurat)</option>
     </select>
   </div>
 
@@ -949,7 +949,7 @@ const DEFAULT_GEMINI_API_KEY = 'AIzaSyBLsiHRd90qyb4GMyL_knX7-egPMi9nGpo';
 
 async function callGemini(prompt, maxTokens = 1000) {
   const customKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
-  const customModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+  const customModel = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${customModel}:generateContent?key=${customKey}`;
   
   const res = await fetch(url, {
@@ -1002,7 +1002,7 @@ function initGeminiKey() {
   if (inp) inp.value = customKey;
   updateGeminiBadge(customKey);
 
-  const savedModel = localStorage.getItem('gemini_model') || 'gemini-1.5-flash';
+  const savedModel = localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
   const sel = document.getElementById('gemini-model-sel');
   if (sel) sel.value = savedModel;
 }
@@ -1018,7 +1018,7 @@ function saveGeminiModel() {
 function updateGeminiBadge(key) {
   const badge = document.getElementById('gemini-status-badge');
   if (!badge) return;
-  if (key && key.startsWith('AIzaSy')) {
+  if (key && (key.startsWith('AIzaSy') || key.startsWith('AQ.'))) {
     badge.textContent = '✔ Aktif';
     badge.style.background = 'var(--grb)';
     badge.style.color = 'var(--gr)';
