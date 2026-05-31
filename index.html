@@ -945,6 +945,9 @@ const GEMINI_MODEL = 'gemini-2.0-flash';
 
 async function callGemini(prompt, maxTokens = 1000) {
   const customKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
+  const isDefault = (customKey === DEFAULT_GEMINI_API_KEY);
+  const keySnippet = customKey ? `${customKey.substring(0, 6)}...${customKey.substring(customKey.length - 4)}` : 'tidak ada';
+  
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${customKey}`;
   
   const res = await fetch(url, {
@@ -958,11 +961,19 @@ async function callGemini(prompt, maxTokens = 1000) {
   
   if (!res.ok) {
     if (res.status === 429) {
-      throw new Error(`Gemini API error 429 (Rate Limit). API Key gratis bawaan telah habis kuota atau dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan masukkan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+      if (isDefault) {
+        throw new Error(`Gemini API error 429 (Rate Limit). API Key gratis bawaan telah habis kuota atau dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan masukkan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+      } else {
+        throw new Error(`Gemini API error 429 (Rate Limit) dengan API Key kustom Anda (${keySnippet}). Kunci kustom Anda telah mencapai batas kecepatan atau limit kuota dari Google AI Studio. Silakan tunggu 1 menit atau pastikan kuota akun Anda di AI Studio masih aktif.`);
+      }
     } else if (res.status === 403) {
-      throw new Error(`Gemini API error 403 (Forbidden). API Key tidak valid atau telah dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan ganti dengan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+      if (isDefault) {
+        throw new Error(`Gemini API error 403 (Forbidden). API Key tidak valid atau telah dinonaktifkan oleh Google karena terdeteksi bocor di riwayat chat. Silakan ganti dengan API Key Gemini Anda sendiri yang aktif di sidebar kiri.`);
+      } else {
+        throw new Error(`Gemini API error 403 (Forbidden) dengan API Key kustom Anda (${keySnippet}). Kunci kustom Anda tidak valid atau telah diblokir/dinonaktifkan oleh Google. Harap periksa apakah Anda menyalin kunci dengan benar dari AI Studio.`);
+      }
     }
-    throw new Error(`Gemini API error ${res.status}`);
+    throw new Error(`Gemini API error ${res.status} (${isDefault ? 'Kunci Bawaan' : 'Kunci Kustom ' + keySnippet})`);
   }
   
   const data = await res.json();
@@ -1030,7 +1041,15 @@ function toggleGeminiKeyVisibility() {
 
 function onGeminiKeyChange() {
   const inp = document.getElementById('gemini-key-input');
-  if (inp) updateGeminiBadge(inp.value.trim());
+  if (inp) {
+    const key = inp.value.trim();
+    if (key) {
+      localStorage.setItem('gemini_api_key', key);
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+    updateGeminiBadge(key);
+  }
 }
 
 // ============================================================
