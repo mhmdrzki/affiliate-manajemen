@@ -14,7 +14,8 @@ function renderSchedAvail(){
     <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd)">
       ${bH(p.klasifikasi)}
       <div style="flex:1;min-width:0">
-        <div style="font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.jenis||p.nama.substring(0,30)}</div>
+        <div style="font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nama.substring(0,45)}</div>
+        <div style="font-size:8.5px;color:var(--tx3);font-family:var(--fm)">${p.jenis||'—'}</div>
         <div style="font-size:9px;color:var(--tx3)">${p.scoreMode==='topsis'?'TOPSIS: '+(p.topsisScore||0).toFixed(2):'Score: '+(p.benchScore||0)} · ${p.slotRek}</div>
       </div>
     </div>`).join(''):`<div class="empty" style="padding:14px"><div class="empty-t">Belum ada produk</div></div>`;
@@ -93,8 +94,8 @@ function renderSchedOutput(){
             </div>
             <div class="srow-prod">
               ${sl.prod
-                ?`<div class="spn">${(sl.prod.jenis||sl.prod.nama).substring(0,45)}</div>
-                   <div class="sps">Score: ${sl.prod.score} · ${sl.prod.kategori||'—'} · ${(sl.prod.descVariants||[]).length} isi konten tersimpan</div>`
+                ?`<div class="spn">${sl.prod.nama.substring(0,55)}</div>
+                   <div class="sps">${sl.prod.jenis||'—'} · Score: ${sl.prod.score} · ${(sl.prod.descVariants||[]).length} isi konten</div>`
                 :`<div class="spn" style="color:var(--tx3)">— Slot kosong —</div><div class="sps">Klik Ganti untuk assign</div>`}
             </div>
             <div class="srow-acts">
@@ -159,7 +160,7 @@ function openAssign(di,si){
   document.getElementById('assign-list').innerHTML=ps.map(p=>`
     <div class="hk-item" style="cursor:pointer" onclick="doAssign('${p.id}')">
       ${bH(p.klasifikasi)}
-      <div class="hk-txt"><div style="font-weight:600;font-size:11.5px">${p.jenis||p.nama.substring(0,35)}</div><div style="font-size:9.5px;color:var(--tx3)">Score: ${p.score} · komisi Rp${fmt(p.komisi||0)}</div></div>
+      <div class="hk-txt"><div style="font-weight:600;font-size:11.5px">${p.nama.substring(0,45)}</div><div style="font-size:9.5px;color:var(--tx3)">${p.jenis||'—'} · Score: ${p.score} · komisi Rp${fmt(p.komisi||0)}</div></div>
     </div>`).join('')+`<div class="hk-item" style="cursor:pointer" onclick="doAssignEmpty()"><div class="hk-txt" style="color:var(--tx3)">— Kosongkan slot —</div></div>`;
   openModal('modal-assign');
 }
