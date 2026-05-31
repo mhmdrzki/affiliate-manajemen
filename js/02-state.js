@@ -2,6 +2,72 @@
 Tujuan: Data Defaults, State Global S, dan Konfigurasi Gemini API
 Caller: index.html, 01-gdrive.js, dan modul lainnya
 Dependensi: gdScheduleSync (dari 01-gdrive)
+Main Functions:
+  - callGemini(prompt, maxTokens): Melakukan request ke Google Gemini API.
+  - save(): Menyimpan mutasi state ke localStorage dan menjadwalkan sync cloud.
+  - initGeminiKey() & saveGeminiKey(): Mengelola custom API key di sidebar.
+Side Effects: Membaca/menulis LocalStorage ('affos4', 'gemini_api_key'), memanggil Gemini API.
+
+================================================================================
+DATABASE DATA SCHEMA (State Global 'S')
+================================================================================
+S = {
+  products: [],          // Array objek produk master (prod)
+  contents: [],          // Array objek riwayat video analitik (content)
+  hooks: [{id, txt}],    // Array Hook template bank
+  proofs: [{id, txt}],   // Array Proof template bank
+  ctas: [{id, txt}],     // Array CTA template bank
+  importHistory: [],     // Array log impor ({filename, added, merged, skipped, ts, total})
+  scoringMode: String,   // Mode kalkulasi skor aktif ('benchmark' | 'topsis')
+  lastModified: Number   // Timestamp milidetik modifikasi terakhir database
+}
+
+Objek Master Produk (S.products[i]):
+prod = {
+  id: String,              // ID Unik ('p' + Timestamp + Random)
+  nama: String,            // Nama lengkap produk dari etalase TikTok Shop
+  jenis: String,           // Tipe pendek produk (ex: "Celana Jogger")
+  harga: Number,           // Harga produk dalam Rupiah
+  komisi: Number,          // Komisi afiliasi per unit terjual
+  kategori: String,        // Kategori ('fashion'|'parfum'|'skincare'|'olahraga'|'elektronik'|'umum')
+  labelPrestasi: String,   // Label seller dari TikTok (ex: "Top selling #4" atau "-")
+  gmvAktif: Boolean,       // Status keaktifan seller beriklan/GMV Max
+  descVariants: [],        // Array maks 3 string deskripsi isi konten buatan AI
+  nVideo: Number,          // Total video terasosiasi hasil impor
+  spreadDays: Number,      // Jumlah hari unik posting terdeteksi
+  maxViews: Number,        // Views video tertinggi
+  avgViews: Number,        // Rata-rata views video
+  totalItemsSold: Number,  // Total unit terjual
+  totalGMV: Number,        // Total GMV dalam Rupiah
+  avgCTR: Number,          // Rata-rata CTR berbobot eksponensial (EMA .7 / .3)
+  avgCTOR: Number,         // Rata-rata CTOR berbobot eksponensial (EMA .7 / .3)
+  uploadDates: [],         // Kumpulan tanggal upload unik
+  benchScore: Number,      // Skor keunggulan akhir (0-100) hasil SAW / TOPSIS
+  topsisScore: Number,     // Skor TOPSIS murni (0.000 - 1.000) atau null jika SAW mode
+  klasifikasi: String,     // Status klasifikasi ('WINNING'|'POTENTIAL'|'MONITOR'|'DROP')
+  slotRek: String,         // Rekomendasi slot waktu posting ('16:00/18:00', dsb.)
+  scoreMode: String        // Indikator mode kalkulasi skor terakhir ('topsis' | 'benchmark')
+}
+
+Objek Riwayat Konten (S.contents[i]):
+content = {
+  id: String,          // ID Unik ('c' + Timestamp + Random)
+  produk: String,      // Nama produk terasosiasi (Relasi manual name-match ke prod.nama)
+  desc: String,        // Caption / deskripsi video TikTok
+  tanggal: String,     // Tanggal posting terdeteksi
+  durasi: String,      // Durasi video dalam detik
+  periode: String,     // Periode data analitik berjalan
+  gmv: Number,         // GMV kontribusi dari video ini
+  itemsSold: Number,   // Unit produk terjual dari video ini
+  ctr: Number,         // Click-Through Rate (%)
+  ctor: Number,        // Click-to-Order Rate (%)
+  aov: Number,         // Rata-rata nilai per transaksi (AOV)
+  views: Number,       // Jumlah penayangan video
+  link: String,        // URL tautan video TikTok
+  estK: Number,        // Estimasi komisi (itemsSold * prod.komisi)
+  ts: Number           // Timestamp internal pembuatan objek
+}
+================================================================================
 */
 
 // ============================================================

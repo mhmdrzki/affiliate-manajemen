@@ -15,6 +15,8 @@ let gdConnected = false;
 let gdSaveTimer = null;
 let gdTokenExpiry = null;
 let gdExpiryTimer = null;
+let gdExpiryTimerDead = null;
+let gdExpiredFlag = false;
 
 // Load token dari localStorage
 try {
@@ -54,6 +56,14 @@ function gdUpdateUI() {
       d.onclick = gdDisconnect;
       btn.parentNode.appendChild(d);
     }
+  } else if (gdExpiredFlag) {
+    dot.className = 'gd-dot expired';
+    lbl.innerHTML = '⚠️ Sesi habis';
+    btn.textContent = '↑ Sambungkan Ulang';
+    btn.className = 'btn-gd primary';
+    btn.onclick = gdConnect;
+    const d = document.getElementById('gd-disc');
+    if (d) d.remove();
   } else {
     dot.className = 'gd-dot';
     lbl.textContent = 'Google Drive';
@@ -71,7 +81,7 @@ function gdAction() {
 }
 
 function gdConnect() {
-  if (!window.google) { toast('Google library belum siap, coba lagi'); return; }
+  if (!window.google) { toast('⚠️ Google library gagal dimuat — pastikan koneksi internet aktif'); return; }
   const client = google.accounts.oauth2.initTokenClient({
     client_id: GD_CLIENT_ID,
     scope: GD_SCOPE,
@@ -79,14 +89,19 @@ function gdConnect() {
       if (resp.error) { toast('Login Google gagal: ' + resp.error); return; }
       gdToken = resp.access_token;
       gdConnected = true;
+      gdExpiredFlag = false;
 
       const expiresIn = resp.expires_in || 3600;
       gdTokenExpiry = Date.now() + expiresIn * 1000;
       clearTimeout(gdExpiryTimer);
+      clearTimeout(gdExpiryTimerDead);
       gdExpiryTimer = setTimeout(() => {
-        toast('⚠️ Sesi Drive akan berakhir dalam 5 menit — backup akan otomatis disimpan');
+        toast('⚠️ Sesi Drive akan berakhir dalam 5 menit — backup otomatis disimpan');
         gdSaveNow();
       }, Math.max((expiresIn - 300) * 1000, 0));
+      gdExpiryTimerDead = setTimeout(() => {
+        gdHandleExpired();
+      }, expiresIn * 1000);
 
       gdSaveLocal();
       gdUpdateUI();
@@ -208,7 +223,8 @@ async function gdSaveNow() {
 
 function gdHandleExpired() {
   gdToken = null; gdConnected = false; gdFileId = null;
-  gdTokenExpiry = null; clearTimeout(gdExpiryTimer);
+  gdTokenExpiry = null; clearTimeout(gdExpiryTimer); clearTimeout(gdExpiryTimerDead);
+  gdExpiredFlag = true;
   localStorage.removeItem('affos_gd');
   gdUpdateUI();
   toast('Sesi Drive berakhir — silakan connect ulang');

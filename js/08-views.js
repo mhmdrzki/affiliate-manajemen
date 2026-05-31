@@ -165,6 +165,10 @@ function pv(v){if(!v&&v!==0)return 0;const s=String(v).replace(/[Rp%\s,]/g,'').r
 function fk(row,...keys){for(const k of keys){const f=Object.keys(row).find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(k.toLowerCase().replace(/[\s._]/g,'')));if(f!==undefined)return row[f];}return '';}
 
 function processFile(file){
+  if(file.name.match(/\.xlsx?$/i) && typeof XLSX === 'undefined') {
+    toast('⚠️ SheetJS belum dimuat — pastikan koneksi internet aktif lalu refresh');
+    return;
+  }
   const r=new FileReader();
   r.onload=e=>{
     try{
@@ -333,12 +337,12 @@ function renderBench(){
 }
 
 function copyOneBench(p){
-  if(S.products.find(pr=>pr.nama.substring(0,12)===p.nama.substring(0,12))){toast('Sudah ada di master');return;}
+  if(S.products.find(pr=>pr.nama.toLowerCase()===p.nama.toLowerCase())){toast('Sudah ada di master');return;}
   S.products.push({id:'p'+Date.now(),nama:p.nama,jenis:p.jenis||'Produk',harga:p.harga,komisi:p.komisi,kategori:'fashion',labelPrestasi:p.label||'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   refreshScores();save();toast('Disalin: '+p.jenis);
 }
 function copyAllBench(){
-  let a=0;BENCH.forEach(p=>{if(!S.products.find(pr=>pr.nama.substring(0,12)===p.nama.substring(0,12))){copyOneBench(p);a++;}});
+  let a=0;BENCH.forEach(p=>{if(!S.products.find(pr=>pr.nama.toLowerCase()===p.nama.toLowerCase())){copyOneBench(p);a++;}});
   toast(a+' produk disalin');
 }
 function adoptBench(){
@@ -364,3 +368,8 @@ renderDash();
 document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
 gdUpdateUI();
 initGeminiKey();
+
+// Cek ketersediaan library CDN kritis
+if (typeof XLSX === 'undefined') {
+  toast('⚠️ SheetJS gagal dimuat — fitur import membutuhkan koneksi internet');
+}
