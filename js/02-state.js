@@ -1,0 +1,177 @@
+/*
+Tujuan: Data Defaults, State Global S, dan Konfigurasi Gemini API
+Caller: index.html, 01-gdrive.js, dan modul lainnya
+Dependensi: gdScheduleSync (dari 01-gdrive)
+*/
+
+// ============================================================
+// SHARED UTILS (dipindah ke sini agar tersedia lebih awal)
+// ============================================================
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
+
+// ============================================================
+// DATA DEFAULTS
+// ============================================================
+const DEF_HOOKS=[
+  {id:'h1',txt:'Gue iseng coba [PRODUK] ini — dan sekarang susah balik ke yang lama.'},
+  {id:'h2',txt:'Jujur, gue awalnya ragu. Tapi setelah pakai [PRODUK] ini, pendapat gue berubah.'},
+  {id:'h3',txt:'Kalau lo lagi cari [PRODUK] yang worth it, mungkin ini yang lo cari.'},
+  {id:'h4',txt:'Ribuan orang udah order ini. Gue penasaran, gue coba — ini hasilnya.'},
+  {id:'h5',txt:'Gue nemu [PRODUK] ini dan langsung ngerti kenapa banyak yang repeat order.'},
+  {id:'h6',txt:'[PRODUK] ini yang sekarang gue pakai sehari-hari. Dan gue punya alasannya.'},
+  {id:'h7',txt:'Ini [PRODUK] yang sering orang tanya ke gue — akhirnya gue bahas juga.'},
+  {id:'h8',txt:'Sebelum lo beli [PRODUK] sembarangan, tonton ini dulu.'},
+  {id:'h9',txt:'Gue nggak nyangka [PRODUK] harga segini bisa sekualitas ini.'},
+  {id:'h10',txt:'Kalau lo sering nunda beli [PRODUK] karena banyak pilihan — coba yang ini dulu.'},
+];
+const DEF_PROOFS=[
+  {id:'p1',txt:'Udah ribuan yang order, dan reviewnya konsisten — bukan dari gue, tapi dari yang udah beli.'},
+  {id:'p2',txt:'Rating-nya tinggi karena memang worth it, bukan karena kebetulan.'},
+  {id:'p3',txt:'Gue bukan satu-satunya yang rekomendasiin ini — cek sendiri jumlah pembelinya.'},
+  {id:'p4',txt:'Yang repeat order biasanya nggak bohong soal kualitas.'},
+  {id:'p5',txt:'Reviewnya konsisten dari berbagai pembeli — itu yang bikin gue yakin rekomendasiin ini.'},
+  {id:'p6',txt:'Bukan karena viral, tapi karena emang bagus. Makanya terus laku.'},
+  {id:'p7',txt:'Sudah terbukti dari review pembeli — kualitasnya sesuai harganya.'},
+];
+const DEF_CTAS=[
+  {id:'c1',txt:'Link produknya ada di keranjang, tap kalau mau.'},
+  {id:'c2',txt:'Tap keranjang kuning di bawah kalau tertarik.'},
+  {id:'c3',txt:'Kalau mau coba, keranjangnya ada di bawah.'},
+  {id:'c4',txt:'Cek dulu di keranjang — siapa tahu cocok buat lo.'},
+  {id:'c5',txt:'Ada di keranjang, tap aja.'},
+  {id:'c6',txt:'Link ada di keranjang, bebas dicek dulu.'},
+];
+
+// ============================================================
+// STATE
+// ============================================================
+const INIT_S={products:[],contents:[],hooks:[...DEF_HOOKS],proofs:[...DEF_PROOFS],ctas:[...DEF_CTAS],importHistory:[],scoringMode:'benchmark',lastModified:0};
+let S=JSON.parse(JSON.stringify(INIT_S));
+try{const sv=localStorage.getItem('affos4');if(sv){const parsed=JSON.parse(sv);S={...INIT_S,...parsed};if(!S.proofs||!S.proofs.length)S.proofs=[...DEF_PROOFS];}}catch(e){}
+function save(){S.lastModified=Date.now();try{localStorage.setItem('affos4',JSON.stringify(S));}catch(e){} gdScheduleSync(); }
+
+// ============================================================
+// AI API CONFIG & HELPER (GEMINI)
+// ============================================================
+const DEFAULT_GEMINI_API_KEY = 'AIzaSyBLsiHRd90qyb4GMyL_knX7-egPMi9nGpo';
+
+async function callGemini(prompt, maxTokens = 1000) {
+  const customKey = localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_API_KEY;
+  const customModel = localStorage.getItem('gemini_model') || 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${customModel}:generateContent?key=${customKey}`;
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 }
+    })
+  });
+  
+  if (!res.ok) {
+    let errDetail = '';
+    try {
+      const errJson = await res.json();
+      errDetail = errJson.error?.message || '';
+    } catch(e) {}
+
+    if (res.status === 429) {
+      if (customKey === DEFAULT_GEMINI_API_KEY) {
+        throw new Error(`API Key bawaan telah habis kuota/dinonaktifkan karena bocor. Masukkan API Key Anda sendiri di sidebar.`);
+      } else {
+        throw new Error(`Rate Limit (429). Kuota API Key Anda habis atau request terlalu cepat. Detail: ${errDetail}`);
+      }
+    } else if (res.status === 403) {
+      if (customKey === DEFAULT_GEMINI_API_KEY) {
+        throw new Error(`API Key bawaan tidak valid/diblokir karena bocor. Masukkan API Key Anda sendiri di sidebar.`);
+      } else {
+        throw new Error(`Akses Ditolak (403). API Key tidak valid / terblokir. Detail: ${errDetail}`);
+      }
+    } else if (res.status === 400) {
+      throw new Error(`Bad Request (400). Pastikan API Key valid. Detail: ${errDetail}`);
+    } else if (res.status === 404) {
+      throw new Error(`Model tidak ditemukan (404). Detail: ${errDetail}`);
+    }
+    throw new Error(`HTTP Error ${res.status}. Detail: ${errDetail}`);
+  }
+  
+  const data = await res.json();
+  const raw = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  return raw.replace(/```json|```/g, '').trim();
+}
+
+// ============================================================
+// GEMINI API KEY MANAGEMENT
+// ============================================================
+function initGeminiKey() {
+  const customKey = localStorage.getItem('gemini_api_key') || '';
+  const inp = document.getElementById('gemini-key-input');
+  if (inp) inp.value = customKey;
+  updateGeminiBadge(customKey);
+
+  const savedModel = localStorage.getItem('gemini_model') || 'gemini-2.5-flash';
+  const sel = document.getElementById('gemini-model-sel');
+  if (sel) sel.value = savedModel;
+}
+
+function saveGeminiModel() {
+  const sel = document.getElementById('gemini-model-sel');
+  if (sel) {
+    localStorage.setItem('gemini_model', sel.value);
+    toast('Model diubah ke ' + sel.value);
+  }
+}
+
+function updateGeminiBadge(key) {
+  const badge = document.getElementById('gemini-status-badge');
+  if (!badge) return;
+  if (key && (key.startsWith('AIzaSy') || key.startsWith('AQ.'))) {
+    badge.textContent = '✔ Aktif';
+    badge.style.background = 'var(--grb)';
+    badge.style.color = 'var(--gr)';
+    badge.style.borderColor = 'var(--grd)';
+  } else if (key) {
+    badge.textContent = '⚠️ Format Salah';
+    badge.style.background = 'var(--amb)';
+    badge.style.color = 'var(--am)';
+    badge.style.borderColor = 'var(--amd)';
+  } else {
+    badge.textContent = '⚠️ Inaktif';
+    badge.style.background = 'var(--rdb)';
+    badge.style.color = 'var(--rd)';
+    badge.style.borderColor = 'var(--rdd)';
+  }
+}
+
+function saveGeminiKey() {
+  const inp = document.getElementById('gemini-key-input');
+  if (!inp) return;
+  const key = inp.value.trim();
+  if (key) {
+    localStorage.setItem('gemini_api_key', key);
+    toast('API Key disimpan!');
+  } else {
+    localStorage.removeItem('gemini_api_key');
+    toast('API Key dikosongkan!');
+  }
+  updateGeminiBadge(key);
+}
+
+function toggleGeminiKeyVisibility() {
+  const inp = document.getElementById('gemini-key-input');
+  const eye = document.getElementById('gemini-eye-toggle');
+  if (!inp || !eye) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    eye.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    eye.textContent = '👁️';
+  }
+}
+
+function onGeminiKeyChange() {
+  const inp = document.getElementById('gemini-key-input');
+  if (inp) updateGeminiBadge(inp.value.trim());
+}

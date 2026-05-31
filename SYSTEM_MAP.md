@@ -71,51 +71,26 @@ $$\text{Klik Connect / Data Save} \xrightarrow{\text{Otorisasi / Debounce}} \tex
 
 ## 3. Clean Structure
 
-Pembagian blok kode di dalam file tunggal `index.html`:
+Aplikasi kini telah dimodularisasi menjadi arsitektur multi-file standar untuk performa token AI yang optimal:
 
 ```
-index.html (~106 KB, 1826 baris)
-├─ CSS Styling Block (Baris 9 - 243)
-│  ├─ Layout dasar, Sidebar & Tombol (Baris 25 - 84)
-│  ├─ Pages, Cards, Metrics, & Table (Baris 85 - 124)
-│  ├─ Form, Import Zone, & Script Output (Baris 125 - 145)
-│  ├─ Tabs, Alerts, Modals, & Toasts (Baris 146 - 177)
-│  ├─ Grid, Jadwal Layout, & Product Card (Baris 178 - 239)
-│  └─ AI Loading Spinner (Baris 240 - 243)
-│
-├─ HTML Struktur Block (Baris 245 - 648)
-│  ├─ Sidebar (#sb) (Baris 249 - 285)
-│  └─ Main Content (#main) (Baris 288 - 610)
-│     ├─ Topbar & Navigasi Utama (Baris 289 - 298)
-│     ├─ Halaman Dashboard (#page-dash) (Baris 301 - 328)
-│     ├─ Halaman Master Produk (#page-produk) (Baris 331 - 345)
-│     ├─ Halaman Jadwal Konten (#page-jadwal) (Baris 348 - 380)
-│     ├─ Halaman Hook · Proof · CTA Bank (#page-bank) (Baris 383 - 442)
-│     ├─ Halaman Script Generator (#page-script) (Baris 445 - 481)
-│     ├─ Halaman Import Analytics (#page-import) (Baris 484 - 527)
-│     ├─ Halaman Benchmark (#page-bench) (Baris 530 - 561)
-│     └─ Halaman Panduan (#page-guide) (Baris 564 - 608)
-│
-├─ Overlay & Modal Block (Baris 614 - 648)
-│  ├─ Modal Tambah/Edit Master Produk (#modal-add) (Baris 614 - 637)
-│  ├─ Modal Assign Produk ke Slot (#modal-assign) (Baris 640 - 646)
-│  └─ Toast Notification (#toast) (Baris 648)
-│
-└─ JavaScript Logic Block (Baris 650 - 1823)
-   ├─ Google Drive Sync Module (Baris 651 - 837)
-   ├─ State & Bank Default Initialization (Baris 840 - 880)
-   ├─ Konstanta Benchmark & Slot Patterns Data (Baris 882 - 905)
-   ├─ Halaman Utama / Navigation Engine (Baris 907 - 932)
-   ├─ Dual Scoring System Engine (TOPSIS & SAW) (Baris 935 - 1055)
-   ├─ Dashboard View Module (Baris 1058 - 1116)
-   ├─ Master Produk View Module (Baris 1118 - 1268)
-   ├─ Jadwal Konten View Module (Baris 1270 - 1432)
-   ├─ Hook · Proof · CTA Bank View Module (Baris 1434 - 1470)
-   ├─ Script Generator View Module (Baris 1472 - 1586)
-   ├─ Import Analytics Parsing & File Processing Module (Baris 1588 - 1712)
-   ├─ Quick Add / Save Master Product Module (Baris 1714 - 1740)
-   └─ Benchmark Visualizer & Utilities Module (Baris 1742 - 1823)
+affiliate-manajemen/
+├─ index.html         (~25 KB, Struktur HTML UI Utama)
+├─ css/
+│  └─ style.css       (Seluruh gaya visual dan tema UI)
+├─ js/
+│  ├─ 01-gdrive.js    (Google Drive Sync Module)
+│  ├─ 02-state.js     (State (S) & Init Bank Defaults, Gemini Auth)
+│  ├─ 03-scoring.js   (Dual Scoring System TOPSIS/SAW)
+│  ├─ 04-nav.js       (UI Navigation Engine)
+│  ├─ 05-dashboard.js (Dashboard View & Anomaly Detect)
+│  ├─ 06-produk.js    (Master Produk View & Gemini Script Gen)
+│  ├─ 07-jadwal.js    (Jadwal Konten & Slot Planner)
+│  └─ 08-views.js     (Hook/Proof/CTA Bank, Script Gen, Import CSV/XLSX, Benchmark)
 ```
+
+**Urutan Pemuatan (Load Order):**
+Karena menggunakan Vanilla JS tanpa bundler, file `.js` diload berurutan (01 sampai 08) di akhir body `index.html` karena fungsi dari file selanjutnya bergantung pada dependensi atau variabel state yang didefinisikan di file sebelumnya.
 
 ---
 
