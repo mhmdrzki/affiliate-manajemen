@@ -297,6 +297,39 @@ function clearAll(){
 // ============================================================
 // IMPORT BENCHMARK
 // ============================================================
+function getBenchProfiles() {
+  const set = new Set(['bangjie.id (bawaan)']);
+  (S.benchmarks || []).forEach(b => { if (b.profile) set.add(b.profile); });
+  return Array.from(set);
+}
+function renderBenchProfileDropdown() {
+  const profiles = getBenchProfiles();
+  const active = S.benchmarkActiveProfile || 'bangjie.id (bawaan)';
+  const selH = document.getElementById('bench-profile-sel');
+  if (selH) selH.innerHTML = profiles.map(p => `<option value="${p}" ${p === active ? 'selected' : ''}>${p}</option>`).join('');
+  const selI = document.getElementById('bench-import-target');
+  if (selI) selI.innerHTML = profiles.map(p => `<option value="${p}">${p}</option>`).join('') + '<option value="__new__">+ Buat Profil Baru</option>';
+  const delBtn = document.getElementById('bench-del-btn');
+  if (delBtn) delBtn.style.display = (active === 'bangjie.id (bawaan)') ? 'none' : '';
+}
+function changeBenchProfile(name) {
+  S.benchmarkActiveProfile = name;
+  save(); analyzeBenchPatterns(); renderBench(); updateBadges();
+}
+function deleteBenchProfile() {
+  const ap = S.benchmarkActiveProfile;
+  if (ap === 'bangjie.id (bawaan)') { toast('Profil bawaan tidak bisa dihapus'); return; }
+  if (!confirm(`Hapus profil "${ap}" dan semua datanya?`)) return;
+  S.benchmarks = (S.benchmarks || []).filter(b => b.profile !== ap);
+  S.benchmarkActiveProfile = 'bangjie.id (bawaan)';
+  save(); analyzeBenchPatterns(); renderBench(); updateBadges();
+  toast(`Profil "${ap}" dihapus`);
+}
+function toggleNewProfileInput(val) {
+  const wrap = document.getElementById('bench-new-name-wrap');
+  if (wrap) wrap.style.display = (val === '__new__') ? '' : 'none';
+}
+
 function ddrBench(e){e.preventDefault();dlv('bz-m');const f=e.dataTransfer.files[0];if(f)processBenchmarkFile(f);}
 function handleBenchmarkFile(inp){if(inp.files[0])processBenchmarkFile(inp.files[0]);}
 
@@ -321,6 +354,23 @@ function processBenchmarkFile(file){
 
 function importBenchmark(rows, filename) {
   if (!S.benchmarks) S.benchmarks = [];
+  const targetSel = document.getElementById('bench-import-target');
+  const modeSel = document.getElementById('bench-import-mode');
+  let profileName = targetSel ? targetSel.value : (S.benchmarkActiveProfile || 'bangjie.id (bawaan)');
+  const importMode = modeSel ? modeSel.value : 'merge';
+
+  if (profileName === '__new__') {
+    const nameInput = document.getElementById('bench-new-name');
+    profileName = nameInput ? nameInput.value.trim() : '';
+    if (!profileName || profileName.length < 2) { toast('Nama profil minimal 2 karakter'); return; }
+    const existing = getBenchProfiles().map(p => p.toLowerCase());
+    if (existing.includes(profileName.toLowerCase())) { toast('Nama profil sudah ada, pilih dari dropdown'); return; }
+  }
+
+  if (importMode === 'overwrite') {
+    S.benchmarks = S.benchmarks.filter(b => b.profile !== profileName);
+  }
+
   let added = 0;
   rows.forEach(row => {
     const nama = String(fk(row, 'nama produk', 'namaproduk', 'produk', 'product') || '').trim();
@@ -343,25 +393,32 @@ function importBenchmark(rows, filename) {
     const link = String(fk(row, 'link', 'link video') || '').trim();
 
     const dupIdx = S.benchmarks.findIndex(b =>
+      b.profile === profileName &&
       b.nama.toLowerCase() === nama.toLowerCase() &&
       b.tanggal === tanggal && b.durasi === durasi);
-      
+
     if (dupIdx >= 0) {
-      Object.assign(S.benchmarks[dupIdx], { 
-        views: Math.max(S.benchmarks[dupIdx].views || 0, views), 
-        terjual: Math.max(S.benchmarks[dupIdx].terjual || 0, terjual) 
+      Object.assign(S.benchmarks[dupIdx], {
+        views: Math.max(S.benchmarks[dupIdx].views || 0, views),
+        terjual: Math.max(S.benchmarks[dupIdx].terjual || 0, terjual)
       });
       return;
     }
 
-    S.benchmarks.push({ nama, hari, tanggal, jam, harga, rating, terjual, label, desc, durasi, views, likes, komentar, share, er, link });
+    S.benchmarks.push({ profile: profileName, nama, hari, tanggal, jam, harga, rating, terjual, label, desc, durasi, views, likes, komentar, share, er, link });
     added++;
   });
 
+  S.benchmarkActiveProfile = profileName;
   analyzeBenchPatterns();
   save();
   renderBench();
   updateBadges();
+
+  const statusEl = document.getElementById('bench-import-status');
+  if (statusEl) {
+    statusEl.innerHTML = `<div class="al al-s">✅ <strong>+${added}</strong> data benchmark ke profil "${profileName}" (${importMode === 'overwrite' ? 'timpa' : 'merge'}).</div>`;
+  }
   toast(`+${added} data benchmark diimpor`);
 }
 
@@ -371,10 +428,13 @@ function importBenchmark(rows, filename) {
 let currentBenchData = BENCH;
 
 function renderBench(){
-  const src = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : null;
+  if(typeof renderBenchProfileDropdown === 'function') renderBenchProfileDropdown();
+  const ap = S.benchmarkActiveProfile || 'bangjie.id (bawaan)';
+  const all = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : [];
+  const src = all.filter(b => b.profile === ap);
   currentBenchData = BENCH;
   
-  if (src) {
+  if (src.length) {
     const agg = {};
     src.forEach(b => {
       const key = b.nama.toLowerCase();
@@ -389,6 +449,9 @@ function renderBench(){
       nama: p.nama, jenis: p.jenis, komisi: p.komisi, harga: p.harga, nV: p.nV, sp: p.uploadDates.length, maxV: p.maxV, avgV: Math.round(p.totalV / p.nV), label: p.label
     })).sort((a,b)=> b.nV - a.nV);
   }
+
+  const titleEl = document.getElementById('bench-prod-title');
+  if (titleEl) titleEl.textContent = `Produk ${ap} — urut frekuensi upload`;
 
   document.getElementById('tbody-bench').innerHTML=currentBenchData.map(p=>{
     const k=p.nV>=5?'WINNING':p.nV>=3?'POTENTIAL':'MONITOR';
@@ -428,11 +491,15 @@ function renderBench(){
     </div>
     <div class="al al-i" style="font-size:10px"><strong>Pola tipikal:</strong> 6 video/hari, 7 hari penuh. Winning dipush 2–3× per minggu, interval 3–4 hari, di slot 10–18.</div>`;
 
+  const topProd = currentBenchData.length ? currentBenchData[0] : null;
+  const totalUploads = currentBenchData.reduce((s, p) => s + p.nV, 0);
+  const avgUploadsPerProduct = currentBenchData.length ? Math.round(totalUploads / currentBenchData.length) : 0;
+  
   document.getElementById('b-ins').innerHTML=`
     <div style="display:grid;gap:7px">
-      <div class="al al-s"><strong>🔑 Frekuensi = sinyal winning</strong><br>HEXA Jogger 8× (maxV 34k). Screamous 6× (maxV 2.744) — views kecil tapi terus dipush = konversi ada.</div>
-      <div class="al al-w"><strong>⚡ Views spike 1× ≠ winning</strong><br>Kalung ORION 60k views, 1× upload = kemungkinan GMV Max traffic dari seller. Bukan push sendiri.</div>
-      <div class="al al-i"><strong>◷ Interval re-upload: 3–4 hari</strong><br>Tidak setiap hari, tapi konsisten. Tiap interval = satu konten baru dengan angle berbeda.</div>
+      <div class="al al-s"><strong>🔑 Frekuensi = sinyal winning</strong><br>${topProd ? `${topProd.nama.substring(0,30)} ${topProd.nV}× upload (maxV ${fmt(topProd.maxV)}). Produk paling sering di-push.` : 'Belum ada data.'}</div>
+      <div class="al al-w"><strong>⚡ Views spike 1× ≠ winning</strong><br>Jika views besar tapi hanya 1× upload = kemungkinan GMV Max traffic seller, bukan push sendiri.</div>
+      <div class="al al-i"><strong>◷ Rata-rata ${avgUploadsPerProduct}× upload per produk</strong><br>${currentBenchData.length} produk terdeteksi. Amati frekuensi upload untuk temukan winning pattern.</div>
       <div class="al al-p"><strong>💡 Volume konten = peluang GMV Max</strong><br>Makin banyak video produk yang sama, makin besar peluang satu di antaranya dipilih seller sebagai Spark Ads.</div>
     </div>`;
 }
@@ -452,7 +519,7 @@ function adoptBench(){
   document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
   goPage('jadwal',document.querySelectorAll('.ni')[2]);
   setTimeout(genSched,150);
-  toast('Pola bangjie diadopsi!');
+  toast(`Pola ${S.benchmarkActiveProfile || 'benchmark'} diadopsi!`);
 }
 
 // ============================================================

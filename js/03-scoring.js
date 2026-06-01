@@ -23,8 +23,10 @@ let BENCH_JAM=[{j:"08:00",n:18},{j:"10:00",n:37},{j:"12:00",n:28},{j:"14:00",n:3
 let BENCH_HARI=[{h:"Senin",n:28,av:4190},{h:"Selasa",n:24,av:3434},{h:"Rabu",n:26,av:3888},{h:"Kamis",n:20,av:2149},{h:"Jumat",n:22,av:1875},{h:"Sabtu",n:29,av:4843},{h:"Minggu",n:28,av:4499}];
 
 function analyzeBenchPatterns() {
-  const src = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : null;
-  if (!src) return { jam: BENCH_JAM, hari: BENCH_HARI };
+  const ap = S.benchmarkActiveProfile || 'bangjie.id (bawaan)';
+  const all = (S.benchmarks && S.benchmarks.length) ? S.benchmarks : [];
+  const src = all.filter(b => b.profile === ap);
+  if (!src.length) return { jam: BENCH_JAM, hari: BENCH_HARI };
 
   const jamMap = {};
   src.forEach(b => { 
@@ -249,5 +251,7 @@ function bH(k){
 function updateBadges(){
   document.getElementById('nb-d').textContent=S.contents.filter(c=>(c.itemsSold||0)>0||(c.gmv||0)>0).length;
   document.getElementById('nb-p').textContent=S.products.length;
-  document.getElementById('nb-b').textContent=(S.benchmarks && S.benchmarks.length) ? S.benchmarks.length : BENCH.length;
+  const ap = S.benchmarkActiveProfile || 'bangjie.id (bawaan)';
+  const benchCount = (S.benchmarks && S.benchmarks.length) ? S.benchmarks.filter(b => b.profile === ap).length : BENCH.length;
+  document.getElementById('nb-b').textContent = benchCount || BENCH.length;
 }

@@ -326,8 +326,13 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
 
 <!-- ======== BENCHMARK ======== -->
 <div class="page" id="page-bench">
-  <div class="al al-p gap">
-    <strong>Benchmark — bangjie.id (30 hari)</strong> · Referensi pola. Tidak mempengaruhi data akunmu.
+  <div class="al al-i gap" style="justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <strong>Benchmark —</strong>
+      <select class="fi" id="bench-profile-sel" onchange="changeBenchProfile(this.value)" style="max-width:220px;font-size:11px;padding:4px 8px;"></select>
+      <button class="btn btn-d btn-xs" id="bench-del-btn" onclick="deleteBenchProfile()" title="Hapus profil ini" style="font-size:9px;">🗑</button>
+    </div>
+    <span style="font-size:10px;color:var(--tx3)">Referensi pola. Tidak mempengaruhi data akunmu.</span>
   </div>
   <div class="tabs">
     <button class="tb act" onclick="tabSw(this,'bt-prod')">Pola Produk</button>
@@ -338,7 +343,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
   <div class="tp act" id="bt-prod">
     <div class="card" style="padding:0">
       <div style="padding:9px 13px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:7px">
-        <span style="font-size:11.5px;font-weight:600;font-family:var(--ff)">Produk bangjie.id — urut frekuensi upload</span>
+        <span id="bench-prod-title" style="font-size:11.5px;font-weight:600;font-family:var(--ff)">Produk — urut frekuensi upload</span>
         <button class="btn btn-pu btn-sm" style="margin-left:auto" onclick="copyAllBench()">⬡ Salin Semua ke Master</button>
       </div>
       <div class="tw"><table><thead><tr><th>Produk</th><th>Upload</th><th>Spread</th><th>Max Views</th><th>Avg Views</th><th>Komisi</th><th>Label</th><th>Sinyal</th><th></th></tr></thead>
@@ -361,8 +366,23 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <div class="card">
       <div class="card-t">↑ Import Benchmark Data</div>
       <div class="al al-i gap-sm" style="font-size:10px; margin-bottom: 10px;">
-        Format file: Excel / CSV hasil riset top affiliator (30 hari terakhir).<br>
+        Format file: Excel / CSV hasil riset top affiliator.<br>
         Kolom wajib: Nama Produk, Hari, Tanggal Upload, Jam Upload, Durasi, Total Terjual, Views.
+      </div>
+      <div class="fg" style="margin-bottom:8px">
+        <label class="fl">Profil Tujuan</label>
+        <select class="fi" id="bench-import-target" onchange="toggleNewProfileInput(this.value)" style="font-size:11px;"></select>
+      </div>
+      <div class="fg" id="bench-new-name-wrap" style="display:none;margin-bottom:8px">
+        <label class="fl">Nama Profil Baru</label>
+        <input type="text" class="fi" id="bench-new-name" placeholder="ex: Kak Jill, Bang Jie, Affiliate A" style="font-size:11px;">
+      </div>
+      <div class="fg" style="margin-bottom:10px">
+        <label class="fl">Mode Import</label>
+        <select class="fi" id="bench-import-mode" style="font-size:11px;">
+          <option value="merge">Gabungkan & Update (Merge) — data lama tetap</option>
+          <option value="overwrite">Timpa semua (Overwrite) — data lama dihapus</option>
+        </select>
       </div>
       <div class="iz" id="bz-m" ondragover="dov(event,'bz-m')" ondragleave="dlv('bz-m')" ondrop="ddrBench(event)" onclick="document.getElementById('fi-bench').click()">
         <div class="iz-ic">↑</div>
@@ -370,6 +390,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="iz-s">.xlsx / .csv</div>
       </div>
       <input type="file" id="fi-bench" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleBenchmarkFile(this)">
+      <div id="bench-import-status" style="margin-top:8px"></div>
     </div>
   </div>
 </div>

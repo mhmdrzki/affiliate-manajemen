@@ -95,3 +95,4 @@ Semua risiko teridentifikasi dari versi sebelumnya (Deduplikasi, Ketergantungan 
 - ✅ **Akumulasi Mingguan Inakurat** diselesaikan dengan `recomputeProductStats()` yang menghitung ulang dari nol menggunakan data mentah `S.contents` (Scratch Aggregation) plus Time-Decay factor 60 hari.
 - ✅ **Dedup Key Lemah** diselesaikan dengan menggunakan `nama + tanggal + durasi`.
 - ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.
+- ✅ **Benchmark Campur Aduk** diselesaikan dengan sistem Multi-Profil Benchmark (opsi *merge/overwrite*) untuk melacak pola antar-affiliator secara terpisah dan memantau perubahan tren dari waktu ke waktu.

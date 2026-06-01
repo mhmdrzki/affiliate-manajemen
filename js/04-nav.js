@@ -12,7 +12,7 @@ function goPage(id,el){
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('act'));
   document.getElementById('page-'+id).classList.add('act');
   if(el) el.classList.add('act');
-  const T={dash:'Dashboard',produk:'Master Produk',jadwal:'Jadwal Konten',bank:'Hook · Proof · CTA',script:'Script Generator',import:'Import Analytics',bench:'Benchmark — bangjie.id',guide:'Panduan'};
+  const T={dash:'Dashboard',produk:'Master Produk',jadwal:'Jadwal Konten',bank:'Hook · Proof · CTA',script:'Script Generator',import:'Import Analytics',bench:'Benchmark — ' + (S.benchmarkActiveProfile || 'bangjie.id (bawaan)'),guide:'Panduan'};
   document.getElementById('tbar-t').textContent=T[id]||id;
   
   // Forward-references yang dipanggil saat klik (aman karena saat itu file lain sudah di-load)
