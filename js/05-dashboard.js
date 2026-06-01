@@ -43,10 +43,7 @@ function renderDash(){
     <td style="max-width:140px;font-size:10.5px">${(c.desc||'—').substring(0,36)}</td>
     <td style="max-width:130px;font-size:10.5px">${(c.produk||'—').substring(0,32)}</td>
     <td style="font-size:9.5px;color:var(--tx3);white-space:nowrap">${c.tanggal||'—'}</td>
-    <td style="font-family:var(--fm);font-size:9.5px;line-height:1.2">
-      <div>${fmt(c.views||0)}</div>
-      <div style="font-size:8px;color:var(--tx3);margin-top:2px" title="Total Views Lifetime">🕒 ${fmt(c.viewsTotal||c.views||0)}</div>
-    </td>
+    <td style="font-family:var(--fm);font-size:9.5px">${fmt(c.views||0)}</td>
     <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctr||0)>1?'var(--gr)':'var(--tx2)'}">${(c.ctr||0).toFixed(1)}%</td>
     <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctor||0)>0.5?'var(--ac2)':'var(--tx2)'}">${(c.ctor||0).toFixed(1)}%</td>
     <td style="font-family:var(--fm);font-size:9.5px;font-weight:600;color:${(c.itemsSold||0)>0?'var(--gr)':'var(--tx3)'}">${c.itemsSold||0}</td>

@@ -64,9 +64,7 @@ content = {
   ctr: Number,         // Click-Through Rate (%)
   ctor: Number,        // Click-to-Order Rate (%)
   aov: Number,         // Rata-rata nilai per transaksi (AOV)
-  jam: String,         // Jam upload terpisah dari kolom "Jam Upload" (format "HH:MM")
-  viewsTotal: Number,  // Total Views Lifetime (keseluruhan sepanjang masa video)
-  views: Number,       // Views Periode (sesuai rentang waktu data analitik berjalan)
+  views: Number,       // Jumlah penayangan video
   link: String,        // URL tautan video TikTok
   estK: Number,        // Estimasi komisi (itemsSold * prod.komisi)
   ts: Number           // Timestamp internal pembuatan objek

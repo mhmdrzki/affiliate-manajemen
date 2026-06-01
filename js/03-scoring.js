@@ -113,15 +113,13 @@ function classifyP(p,mode){
   const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
   const ts=p.topsisScore||0;
-  
   if(mode==='topsis'){
-    if(ts>=0.55)return 'WINNING';
-    if(sold>=2&&ts>=0.20)return 'WINNING';
-    if(ctor>=0.5&&sold>=1)return 'WINNING';
+    if(ts>=0.65)return 'WINNING';
+    if(sold>=3&&ts>=0.30)return 'WINNING';
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
-    if(ts>=0.20)return 'POTENTIAL';
+    if(ts>=0.30)return 'POTENTIAL';
     if(ctr>0.5&&n>=2)return 'POTENTIAL';
-    if(sold>=1)return 'POTENTIAL';
+    if(sold>=1&&ts>=0.15)return 'POTENTIAL';
     return 'MONITOR';
   }
   // benchmark (frequency-based)
@@ -194,15 +192,14 @@ function recomputeProductStats() {
     rows.forEach(c => {
       const postDate = c.tanggal ? parseDate(c.tanggal) : c.ts;
       const ageContentDays = Math.max(0, (now - postDate) / 86400000);
-      const decayContent = Math.pow(0.5, ageContentDays / 45); // Half-life 45 hari
+      const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
 
       const transDate = c.periodeEnd || (c.tanggal ? parseDate(c.tanggal) : 0) || c.ts;
       const ageTransDays = Math.max(0, (now - transDate) / 86400000);
-      const decayTrans = Math.pow(0.5, ageTransDays / 45); // Half-life 45 hari
+      const decayTrans = Math.max(0.2, 1 - ageTransDays / 60);
 
       prod.nVideo++;
-      const vTotal = c.viewsTotal || c.views || 0;
-      prod.maxViews = Math.max(prod.maxViews, vTotal);
+      prod.maxViews = Math.max(prod.maxViews, c.views || 0);
       if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
         prod.uploadDates.push(c.tanggal);
 
@@ -213,8 +210,8 @@ function recomputeProductStats() {
       prod.totalGMV += (c.gmv || 0) * decayTrans;
       if ((c.gmv || 0) > 0) prod.gmvAktif = true;
 
-      if ((c.ctr || 0) > 0) prod.avgCTR = prod.avgCTR > 0 ? (prod.avgCTR * 0.7 + c.ctr * 0.3) : c.ctr;
-      if ((c.ctor || 0) > 0) prod.avgCTOR = prod.avgCTOR > 0 ? (prod.avgCTOR * 0.7 + c.ctor * 0.3) : c.ctor;
+      prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
+      prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.7 + (c.ctor || 0) * 0.3) : (c.ctor || 0);
     });
 
     prod.spreadDays = prod.uploadDates.length;
@@ -231,27 +228,19 @@ function analyzePersonalPatterns() {
   let totalVideoWithHours = 0;
 
   S.contents.forEach(c => {
-    let hStr = '';
+    const ds = c.tanggal || c.periode || '';
     
-    if (c.jam) {
-      const m = c.jam.match(/^(\d{2}):\d{2}/);
-      if (m) hStr = m[1] + ':00';
-    }
-    
-    if (!hStr) {
-      const ds = c.tanggal || c.periode || '';
-      const m = ds.match(/\b(\d{2}):\d{2}\b/);
-      if (m) hStr = m[1] + ':00';
-    }
-
-    if (hStr) {
+    // Parse Hour
+    const m = ds.match(/\b(\d{2}):\d{2}\b/);
+    if (m) {
+      const hStr = m[1] + ':00';
       if (!jamMap[hStr]) jamMap[hStr] = { count: 0, views: 0 };
       jamMap[hStr].count++;
       jamMap[hStr].views += (c.views || 0);
       totalVideoWithHours++;
     }
 
-    const ds = c.tanggal || c.periode || '';
+    // Parse Day
     const ts = parseDate(ds) || c.ts;
     if (ts) {
       const dn = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(ts).getDay()];

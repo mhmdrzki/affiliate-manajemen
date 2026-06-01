@@ -161,36 +161,8 @@ function dov(e,id){e.preventDefault();document.getElementById(id).classList.add(
 function dlv(id){document.getElementById(id).classList.remove('dov');}
 function ddr(e){e.preventDefault();dlv('iz-m');const f=e.dataTransfer.files[0];if(f)processFile(f);}
 function handleFile(inp){if(inp.files[0])processFile(inp.files[0]);}
-function pv(v) {
-  if (!v && v !== 0) return 0;
-  let s = String(v).replace(/[Rp%\s]/g, '').trim();
-  if (s.includes(',')) {
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else {
-    const dots = s.split('.');
-    if (dots.length > 2) {
-      s = s.replace(/\./g, '');
-    } else if (dots.length === 2 && dots[1].length === 3 && dots[0].length >= 1) {
-      s = s.replace('.', '');
-    }
-  }
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
-}
-function fk(row, ...keys) {
-  const rowKeys = Object.keys(row);
-  for (const k of keys) {
-    const nk = k.toLowerCase().replace(/[\s._]/g, '');
-    const f = rowKeys.find(rk => rk.toLowerCase().replace(/[\s._]/g, '') === nk);
-    if (f !== undefined) return row[f];
-  }
-  for (const k of keys) {
-    const nk = k.toLowerCase().replace(/[\s._]/g, '');
-    const f = rowKeys.find(rk => rk.toLowerCase().replace(/[\s._]/g, '').includes(nk));
-    if (f !== undefined) return row[f];
-  }
-  return '';
-}
+function pv(v){if(!v&&v!==0)return 0;const s=String(v).replace(/[Rp%\s,]/g,'').replace(/\./g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
+function fk(row,...keys){for(const k of keys){const f=Object.keys(row).find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(k.toLowerCase().replace(/[\s._]/g,'')));if(f!==undefined)return row[f];}return '';}
 
 function processFile(file){
   if(file.name.match(/\.xlsx?$/i) && typeof XLSX === 'undefined') {
@@ -243,7 +215,7 @@ function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
     const produk=String(fk(row,'nama produk','namaproduk','produk','product')||'').trim();
-    const desc=String(fk(row,'deskripsi full','deskripsi video','deskripsi','description')||'').trim();
+    const desc=String(fk(row,'deskripsi','description','deskripsi video')||'').trim();
     if(!produk||produk.length<2||produk.toLowerCase().startsWith('nama')){skipped++;return;}
     const gmv=pv(fk(row,'attr. gmv','attr gmv','gmv'));
     const sold=pv(fk(row,'attr. items sold','items sold','itemssold','terjual','sold'));
@@ -251,10 +223,8 @@ function importRows(rows,filename){
     const ctor=pv(fk(row,'ctor'));
     const aov=pv(fk(row,'aov'));
     const views=pv(fk(row,'views'));
-    const viewsTotal=pv(fk(row,'total views'));
     const link=String(fk(row,'link','url')||'').trim();
-    const tanggal=String(fk(row,'tanggal posting','tanggal upload','tanggal','date')||'').trim();
-    const jam=String(fk(row,'jam upload','jam posting','jam','time')||'').trim();
+    const tanggal=String(fk(row,'tanggal posting','tanggal','date')||'').trim();
     const durasi=String(fk(row,'durasi','duration')||'').trim();
     const periode=String(fk(row,'periode data','periode')||'').trim();
 
@@ -267,8 +237,6 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctr=Math.max(S.contents[dupIdx].ctr||0,ctr);
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
-      S.contents[dupIdx].viewsTotal=Math.max(S.contents[dupIdx].viewsTotal||0,viewsTotal);
-      if(jam&&!S.contents[dupIdx].jam)S.contents[dupIdx].jam=jam;
       if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
         S.contents[dupIdx].periode=periode;
         S.contents[dupIdx].periodeStart=pStart;
@@ -296,7 +264,7 @@ function importRows(rows,filename){
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
-    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,jam,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,viewsTotal,link,estK,ts:Date.now()});
+    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,link,estK,ts:Date.now()});
     added++;
   });
   S.importHistory.push({filename,added,merged,skipped,ts:new Date().toLocaleString('id'),total:S.contents.length});
