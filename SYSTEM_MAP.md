@@ -23,7 +23,7 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 
 * **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/03-scoring.js))
 * **Scoring & Klasifikasi**: `refreshScores()` ➔ `recomputeProductStats()` (Agregasi ulang dgn Dual Decay 60 hari: Content Decay utk views, Transaction Decay utk GMV/sold) ➔ `scoreTOPSIS()` / `scoreBenchmark()` ➔ `classifyP()` (WINNING/POTENTIAL/UJI COBA/MONITOR/DROP) ➔ Urutkan `S.products` ➔ `save()`
-* **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/07-jadwal.js)) ➔ Alokasi slot (`PATS`/`PRIME`/`MID`) ➔ `buildSlotScript()` ➔ `renderSchedOutput()`
+* **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` & `computeDayMultiplier()` ➔ Weighted `pickWithCooldown()` ➔ `buildSlotScript()` ➔ `renderSchedOutput()`
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
 * **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
 
@@ -59,16 +59,16 @@ Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
    * *Fungsi Utama*: `gdConnect()`, `gdDisconnect()`, `gdLoadFromDrive()`, `gdSaveNow()`, `gdScheduleSync()`.
 2. **[js/02-state.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/02-state.js)**: State management `S` & Gemini API key/model selector.
    * *Fungsi Utama*: `toast()`, `save()`, `callGemini()`, `initGeminiKey()`, `saveGeminiKey()`.
-3. **[js/03-scoring.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/03-scoring.js)**: Algoritma dual pemeringkatan dan anomali.
-   * *Fungsi Utama*: `scoreBenchmark()`, `scoreTOPSIS()`, `classifyP()`, `detectAnomalies()`, `refreshScores()`, `updateBadges()`.
+3. **[js/03-scoring.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/03-scoring.js)**: Algoritma dual pemeringkatan, anomali, dan agregasi jadwal dinamis.
+   * *Fungsi Utama*: `scoreBenchmark()`, `scoreTOPSIS()`, `classifyP()`, `analyzePersonalPatterns()`, `computeDynamicSlots()`, `computeDayMultiplier()`, `refreshScores()`, `updateBadges()`.
 4. **[js/04-nav.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/04-nav.js)**: Navigasi halaman SPA dan handling modals.
    * *Fungsi Utama*: `goPage()`, `tabSw()`, `setMode()`, `openModal()`, `closeModal()`.
 5. **[js/05-dashboard.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/05-dashboard.js)**: Agregasi KPI bisnis analitik dan widget alert.
    * *Fungsi Utama*: `fmt()`, `renderDash()`.
 6. **[js/06-produk.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/06-produk.js)**: Master produk dan AI deskripsi generator.
    * *Fungsi Utama*: `renderProduk()`, `openGenDesc()`, `doGenDesc()`, `saveNewProd()`.
-7. **[js/07-jadwal.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/07-jadwal.js)**: Slot planner kalender posting dan perakit naskah.
-   * *Fungsi Utama*: `buildSlotScript()`, `genSched()`, `renderSchedOutput()`, `rotateSlot()`, `copySlot()`.
+7. **[js/07-jadwal.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2), slot planner, dan perakit naskah.
+   * *Fungsi Utama*: `genSched()`, `pickWithCooldown()`, `computeWeights()`, `buildSlotScript()`, `renderSchedOutput()`, `rotateSlot()`, `copySlot()`.
 8. **[js/08-views.js](file:///Users/mhmdrzki/Documents/affiliate-manajemen/js/08-views.js)**: Impor SheetJS, AI standalone generator, bank teks, dan app inisialisasi.
    * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`.
 

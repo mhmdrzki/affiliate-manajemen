@@ -55,8 +55,9 @@ function analyzeBenchPatterns() {
 // SLOT PATTERNS
 // ============================================================
 const PATS={'3':['10:00','14:00','18:00'],'5':['09:00','11:00','14:00','16:00','18:00'],'6':['08:00','10:00','12:00','14:00','16:00','18:00'],'10':['07:00','08:00','09:00','10:00','11:00','13:00','14:00','16:00','17:00','18:00']};
-const PRIME_SLOTS=['18:00','17:00','16:00'];
-const MID_SLOTS=['14:00','13:00','11:00','10:00','09:00'];
+let PRIME_SLOTS=['18:00','17:00','16:00'];
+let MID_SLOTS=['14:00','13:00','11:00','10:00','09:00'];
+let currentSlotSource='Bawaan';
 
 // ============================================================
 // DUAL SCORING SYSTEM
@@ -218,6 +219,99 @@ function recomputeProductStats() {
     prod.totalItemsSold = Math.round(prod.totalItemsSold);
     prod.totalGMV = Math.round(prod.totalGMV);
   });
+}
+
+// ── DYNAMIC SCHEDULING HELPERS ────────────────────────────────
+function analyzePersonalPatterns() {
+  const jamMap = {};
+  const hariMap = {};
+  let totalVideoWithHours = 0;
+
+  S.contents.forEach(c => {
+    const ds = c.tanggal || c.periode || '';
+    
+    // Parse Hour
+    const m = ds.match(/\b(\d{2}):\d{2}\b/);
+    if (m) {
+      const hStr = m[1] + ':00';
+      if (!jamMap[hStr]) jamMap[hStr] = { count: 0, views: 0 };
+      jamMap[hStr].count++;
+      jamMap[hStr].views += (c.views || 0);
+      totalVideoWithHours++;
+    }
+
+    // Parse Day
+    const ts = parseDate(ds) || c.ts;
+    if (ts) {
+      const dn = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(ts).getDay()];
+      if (!hariMap[dn]) hariMap[dn] = { count: 0, views: 0 };
+      hariMap[dn].count++;
+      hariMap[dn].views += (c.views || 0);
+    }
+  });
+
+  const jam = Object.entries(jamMap).map(([j, d]) => ({ j, n: d.count, av: Math.round(d.views/d.count) })).sort((a,b) => b.n - a.n || b.av - a.av);
+  const hari = Object.entries(hariMap).map(([h, d]) => ({ h, n: d.count, av: Math.round(d.views/d.count) }));
+  
+  return { jam, hari, totalVideoWithHours };
+}
+
+function computeDynamicSlots(useDynamic) {
+  if (!useDynamic) {
+    PRIME_SLOTS = ['18:00','17:00','16:00'];
+    MID_SLOTS = ['14:00','13:00','11:00','10:00','09:00'];
+    currentSlotSource = 'Bawaan';
+    return;
+  }
+
+  const pData = analyzePersonalPatterns();
+  let jamData = [];
+  
+  if (pData.totalVideoWithHours >= 10) {
+    jamData = pData.jam;
+    currentSlotSource = 'Analitik Akun';
+  } else {
+    analyzeBenchPatterns();
+    jamData = BENCH_JAM.slice().sort((a,b) => b.n - a.n);
+    currentSlotSource = 'Analitik Kompetitor';
+  }
+
+  if (jamData.length >= 3) {
+    const primeCount = Math.max(2, Math.ceil(jamData.length * 0.3));
+    const midCount = Math.max(3, Math.ceil(jamData.length * 0.4));
+    
+    PRIME_SLOTS = jamData.slice(0, primeCount).map(j => j.j);
+    MID_SLOTS = jamData.slice(primeCount, primeCount + midCount).map(j => j.j);
+  } else {
+    PRIME_SLOTS = ['18:00','17:00','16:00'];
+    MID_SLOTS = ['14:00','13:00','11:00','10:00','09:00'];
+  }
+}
+
+function computeDayMultiplier(dayName, useAdaptive) {
+  if (!useAdaptive) return 1.0;
+  
+  const pData = analyzePersonalPatterns();
+  let hariData = [];
+  
+  if (pData.hari.length >= 4) {
+    hariData = pData.hari;
+  } else {
+    analyzeBenchPatterns();
+    hariData = BENCH_HARI;
+  }
+  
+  if (!hariData || !hariData.length) return 1.0;
+  
+  const totalViews = hariData.reduce((s, h) => s + (h.av || 0), 0);
+  const globalAvg = totalViews / hariData.length;
+  if (globalAvg <= 0) return 1.0;
+  
+  const dayStats = hariData.find(h => h.h === dayName || h.h.includes(dayName) || dayName.includes(h.h));
+  if (!dayStats) return 1.0;
+  
+  const multiplier = dayStats.av / globalAvg;
+  return Math.max(0.5, Math.min(1.5, multiplier));
 }
 
 // ── MAIN REFRESH ─────────────────────────────────────────────

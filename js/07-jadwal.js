@@ -35,12 +35,40 @@ function buildSlotScript(prod,hIdx,pfIdx,ctaIdx,descIdx){
   return `<span class="sh">[HOOK]</span>\n${hook}\n\n<span class="sh">[ISI]</span>\n${desc}\n\n<span class="sh">[PROOF]</span>\n${proof}\n\n<span class="sh">[CTA]</span>\n${cta}`;
 }
 
+function computeWeights(pool) {
+  return pool.map(p => {
+    const score = p.benchScore || 0;
+    const komisi = p.komisi || 0;
+    const weight = (score / 100) * (1 + Math.log10(komisi + 1));
+    return { p, weight };
+  });
+}
+
+function weightedPick(poolWithWeights) {
+  if (!poolWithWeights.length) return null;
+  const totalW = poolWithWeights.reduce((s, x) => s + x.weight, 0);
+  if (totalW <= 0) return poolWithWeights[Math.floor(Math.random() * poolWithWeights.length)].p;
+  let r = Math.random() * totalW;
+  for (const item of poolWithWeights) {
+    r -= item.weight;
+    if (r <= 0) return item.p;
+  }
+  return poolWithWeights[poolWithWeights.length - 1].p;
+}
+
 let schedData=[];
 function genSched(){
   const start=document.getElementById('sd-date').value;
   const range=parseInt(document.getElementById('sd-range').value);
   const pat=document.getElementById('sd-pat').value;
+  
+  const cbDynJam = document.getElementById('cb-dyn-jam')?.checked ?? false;
+  const cbDynVol = document.getElementById('cb-dyn-vol')?.checked ?? false;
+  const cbCooldown = document.getElementById('cb-cooldown')?.checked ?? false;
+  
   if(!start){toast('Pilih tanggal');return;}
+
+  computeDynamicSlots(cbDynJam);
 
   const slots=PATS[pat]||PATS['6'];
   const winning=S.products.filter(p=>p.klasifikasi==='WINNING').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
@@ -49,9 +77,29 @@ function genSched(){
   const ujiCoba=S.products.filter(p=>p.klasifikasi==='UJI COBA').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
   const active=S.products.filter(p=>p.klasifikasi!=='DROP').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
 
-  function pick(pool,idx){
-    if(pool.length>0)return pool[idx%pool.length];
-    if(active.length>0)return active[idx%active.length];
+  const winW = computeWeights(winning);
+  const potW = computeWeights(potential);
+  const monW = computeWeights(monitor);
+  const ujiW = computeWeights(ujiCoba);
+
+  function pickWithCooldown(chains, cooldownMap, slotIdx) {
+    for (const poolW of chains) {
+      if (!poolW.length) continue;
+      let validPool = poolW;
+      if (cbCooldown) {
+        validPool = poolW.filter(item => {
+          const lastIdx = cooldownMap[item.p.id];
+          if (lastIdx === undefined) return true;
+          return (slotIdx - lastIdx) >= 2;
+        });
+      }
+      if (validPool.length > 0) {
+        const picked = weightedPick(validPool);
+        cooldownMap[picked.id] = slotIdx;
+        return picked;
+      }
+    }
+    if (active.length > 0) return active[0];
     return null;
   }
 
@@ -59,15 +107,47 @@ function genSched(){
   for(let d=0;d<range;d++){
     const dt=new Date(start);dt.setDate(dt.getDate()+d);
     const dn=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][dt.getDay()];
-    let wi=0,pi=0,mi=0;
-    const daySlots=slots.map(time=>{
-      let prod,type;
-      if(PRIME_SLOTS.includes(time)){prod=pick(winning,d*3+wi);type='prime';wi++;}
-      else if(MID_SLOTS.includes(time)){prod=pick(potential,d*3+pi)||pick(winning,pi);type='pot';pi++;}
-      else{prod=pick(ujiCoba,d*2+mi)||pick(monitor,d*2+mi)||pick(active,mi);type='test';mi++;}
-      return{time,prod,type,hIdx:Math.floor(Math.random()*Math.max(S.hooks.length,1)),pfIdx:Math.floor(Math.random()*Math.max(S.proofs.length,1)),ctaIdx:Math.floor(Math.random()*Math.max(S.ctas.length,1)),descIdx:0,sopen:false};
+    
+    let multiplier = computeDayMultiplier(dn, cbDynVol);
+    let targetSlotCount = Math.max(1, Math.round(slots.length * multiplier));
+    let daySlotsTimes = [...slots];
+    
+    if (targetSlotCount > slots.length) {
+      const allTimes = PATS['10'];
+      const toAdd = allTimes.filter(t => !daySlotsTimes.includes(t));
+      for(let i=0; i < (targetSlotCount - slots.length) && i < toAdd.length; i++){
+        daySlotsTimes.push(toAdd[i]);
+      }
+    } else if (targetSlotCount < slots.length) {
+      daySlotsTimes.sort((a,b) => {
+        const pA = PRIME_SLOTS.includes(a) ? 3 : MID_SLOTS.includes(a) ? 2 : 1;
+        const pB = PRIME_SLOTS.includes(b) ? 3 : MID_SLOTS.includes(b) ? 2 : 1;
+        return pA - pB;
+      });
+      daySlotsTimes = daySlotsTimes.slice(slots.length - targetSlotCount);
+    }
+    daySlotsTimes.sort();
+
+    let cooldownMap = {};
+    const daySlots=daySlotsTimes.map((time, si)=>{
+      let prod, type, typeLabel;
+      if(PRIME_SLOTS.includes(time)){
+        prod=pickWithCooldown([winW, potW, ujiW, monW], cooldownMap, si);
+        type='prime'; typeLabel=`PRIME (${currentSlotSource})`;
+      } else if(MID_SLOTS.includes(time)){
+        prod=pickWithCooldown([potW, winW, ujiW, monW], cooldownMap, si);
+        type='pot'; typeLabel=`POTENSIAL (${currentSlotSource})`;
+      } else {
+        prod=pickWithCooldown([ujiW, monW, potW, winW], cooldownMap, si);
+        type='test'; typeLabel=`TEST (${currentSlotSource})`;
+      }
+      return{time,prod,type,typeLabel,hIdx:Math.floor(Math.random()*Math.max(S.hooks.length,1)),pfIdx:Math.floor(Math.random()*Math.max(S.proofs.length,1)),ctaIdx:Math.floor(Math.random()*Math.max(S.ctas.length,1)),descIdx:0,sopen:false};
     });
-    schedData.push({dt,dn,slots:daySlots,open:true});
+    
+    let volDiff = daySlotsTimes.length - slots.length;
+    let volLabel = volDiff > 0 ? `📈 +${volDiff} slot (Panen Trafik)` : volDiff < 0 ? `📉 ${volDiff} slot (Hemat Trafik)` : '';
+
+    schedData.push({dt,dn,slots:daySlots,open:true,volLabel,multiplier});
   }
   renderSchedOutput();
   toast('Jadwal '+range+' hari dibuat!');
@@ -80,6 +160,7 @@ function renderSchedOutput(){
       <div class="sday-hdr" onclick="toggleDay(${di})">
         <div class="sday-name">${day.dn}, ${day.dt.getDate()}/${day.dt.getMonth()+1}/${day.dt.getFullYear()}</div>
         <div class="sday-stat">
+          ${day.volLabel ? `<span style="color:${day.multiplier>1?'var(--gr)':'var(--tx3)'};font-weight:600">${day.volLabel}</span>` : ''}
           <span>${day.slots.length} slot</span>
           <span>${day.slots.filter(s=>s.prod).length} produk</span>
           <span>${day.open?'▾':'▸'}</span>
@@ -90,7 +171,7 @@ function renderSchedOutput(){
           <div class="srow ${sl.sopen?'sopen':''}" id="sr-${di}-${si}">
             <div class="srow-time">
               <div class="srow-tv">${sl.time}</div>
-              <div class="slbl slbl-${sl.type==='prime'?'prime':sl.type==='pot'?'pot':'test'}">${sl.type==='prime'?'PRIME':sl.type==='pot'?'POTENSIAL':'TEST'}</div>
+              <div class="slbl slbl-${sl.type==='prime'?'prime':sl.type==='pot'?'pot':'test'}">${sl.typeLabel || sl.type}</div>
             </div>
             <div class="srow-prod">
               ${sl.prod
