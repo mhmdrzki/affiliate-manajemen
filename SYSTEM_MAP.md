@@ -96,3 +96,6 @@ Semua risiko teridentifikasi dari versi sebelumnya (Deduplikasi, Ketergantungan 
 - ✅ **Dedup Key Lemah** diselesaikan dengan menggunakan `nama + tanggal + durasi`.
 - ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.
 - ✅ **Benchmark Campur Aduk** diselesaikan dengan sistem Multi-Profil Benchmark (opsi *merge/overwrite*) untuk melacak pola antar-affiliator secara terpisah dan memantau perubahan tren dari waktu ke waktu.
+- ✅ **Skoring Bias (Nol & Linear Decay)** diselesaikan dengan memfilter nilai `0` dari EMA CTOR/CTR, dan menggunakan Exponential Half-life (45 hari) agar adil pada data baru.
+- ✅ **Parsing Titik Desimal Pecah** diselesaikan dengan heuristik deteksi otomatis format ID vs US pada fungsi `pv()`.
+- ✅ **Ambiguitas Kolom (Total Views vs Views)** diselesaikan dengan *Exact Match Priority* dan agregasi Dual-Views (Periode vs Lifetime) yang dipisah.
