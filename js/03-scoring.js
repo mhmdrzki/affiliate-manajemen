@@ -179,8 +179,8 @@ function recomputeProductStats() {
     if (!rows.length) return;
 
     rows.sort((a, b) => {
-      const da = a.tanggal ? parseDate(a.tanggal) : a.ts;
-      const db = b.tanggal ? parseDate(b.tanggal) : b.ts;
+      const da = a.periodeEnd || (a.tanggal ? parseDate(a.tanggal) : 0) || a.ts;
+      const db = b.periodeEnd || (b.tanggal ? parseDate(b.tanggal) : 0) || b.ts;
       return da - db;
     });
 
@@ -188,18 +188,23 @@ function recomputeProductStats() {
 
     rows.forEach(c => {
       const postDate = c.tanggal ? parseDate(c.tanggal) : c.ts;
-      const ageDays = Math.max(0, (now - postDate) / 86400000);
-      const decay = Math.max(0.2, 1 - ageDays / 60);
+      const ageContentDays = Math.max(0, (now - postDate) / 86400000);
+      const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
+
+      const transDate = c.periodeEnd || (c.tanggal ? parseDate(c.tanggal) : 0) || c.ts;
+      const ageTransDays = Math.max(0, (now - transDate) / 86400000);
+      const decayTrans = Math.max(0.2, 1 - ageTransDays / 60);
 
       prod.nVideo++;
       prod.maxViews = Math.max(prod.maxViews, c.views || 0);
       if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
         prod.uploadDates.push(c.tanggal);
 
-      totalWeightedViews += (c.views || 0) * decay;
-      totalWeight += decay;
-      prod.totalItemsSold += (c.itemsSold || 0) * decay;
-      prod.totalGMV += (c.gmv || 0) * decay;
+      totalWeightedViews += (c.views || 0) * decayContent;
+      totalWeight += decayContent;
+      
+      prod.totalItemsSold += (c.itemsSold || 0) * decayTrans;
+      prod.totalGMV += (c.gmv || 0) * decayTrans;
       if ((c.gmv || 0) > 0) prod.gmvAktif = true;
 
       prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);

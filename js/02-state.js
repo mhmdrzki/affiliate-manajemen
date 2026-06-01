@@ -56,7 +56,9 @@ content = {
   desc: String,        // Caption / deskripsi video TikTok
   tanggal: String,     // Tanggal posting terdeteksi
   durasi: String,      // Durasi video dalam detik
-  periode: String,     // Periode data analitik berjalan
+  periode: String,     // Periode data analitik berjalan (string asli dari Excel)
+  periodeStart: Number,// Timestamp milidetik awal rentang periode (parsed dari kolom periode)
+  periodeEnd: Number,  // Timestamp milidetik akhir rentang periode (parsed dari kolom periode)
   gmv: Number,         // GMV kontribusi dari video ini
   itemsSold: Number,   // Unit produk terjual dari video ini
   ctr: Number,         // Click-Through Rate (%)

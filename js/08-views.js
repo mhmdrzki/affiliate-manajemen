@@ -198,6 +198,19 @@ function parseCSV(text){
   });
 }
 
+function parsePeriodeDates(periodeStr, fallbackTs) {
+  if (!periodeStr) return { start: fallbackTs, end: fallbackTs };
+  const clean = periodeStr.replace(/"/g, '').trim();
+  const parts = clean.split(/\s+[-–—~]\s+|\s+s\/d\s+|\s+to\s+|\s+s\.d\.\s+|\s+sampai\s+/i);
+  if (parts.length >= 2) {
+    const start = parseDate(parts[0].trim()) || fallbackTs;
+    const end = parseDate(parts[parts.length - 1].trim()) || fallbackTs;
+    return { start, end };
+  }
+  const d = parseDate(clean) || fallbackTs;
+  return { start: d, end: d };
+}
+
 function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
@@ -216,6 +229,7 @@ function importRows(rows,filename){
     const periode=String(fk(row,'periode data','periode')||'').trim();
 
     // Dedup
+    const { start: pStart, end: pEnd } = parsePeriodeDates(periode, Date.now());
     const dupIdx=S.contents.findIndex(c=>c.produk.toLowerCase()===produk.toLowerCase()&&c.tanggal===tanggal&&tanggal!==''&&c.durasi===durasi);
     if(dupIdx>=0){
       S.contents[dupIdx].gmv=Math.max(S.contents[dupIdx].gmv||0,gmv);
@@ -223,6 +237,11 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctr=Math.max(S.contents[dupIdx].ctr||0,ctr);
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
+      if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
+        S.contents[dupIdx].periode=periode;
+        S.contents[dupIdx].periodeStart=pStart;
+        S.contents[dupIdx].periodeEnd=pEnd;
+      }
       merged++;return;
     }
 
@@ -245,7 +264,7 @@ function importRows(rows,filename){
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
-    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,gmv,itemsSold:sold,ctr,ctor,aov,views,link,estK,ts:Date.now()});
+    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,link,estK,ts:Date.now()});
     added++;
   });
   S.importHistory.push({filename,added,merged,skipped,ts:new Date().toLocaleString('id'),total:S.contents.length});
