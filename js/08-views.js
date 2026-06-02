@@ -541,3 +541,17 @@ initGeminiKey();
 if (typeof XLSX === 'undefined') {
   toast('⚠️ SheetJS gagal dimuat — fitur import membutuhkan koneksi internet');
 }
+
+// ============================================================
+// SEARCH SELECT OPTIONS
+// ============================================================
+function filterSelectOptions(inputId, selectId) {
+  const q = document.getElementById(inputId).value.toLowerCase();
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  Array.from(sel.options).forEach(opt => {
+    if (opt.value === "") return; // Skip placeholder
+    const text = opt.text.toLowerCase();
+    opt.style.display = text.includes(q) ? '' : 'none';
+  });
+}

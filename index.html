@@ -134,6 +134,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb" onclick="tabSw(this,'tp-d')">🔴 Drop</button>
     <button class="btn btn-p btn-sm" style="margin-left:auto;align-self:center" onclick="openAddProd()">+ Tambah</button>
   </div>
+  <div style="margin-bottom:12px"><input type="text" class="fi" id="search-master" placeholder="🔍 Cari nama produk, jenis, atau label..." oninput="filterMaster()"></div>
   <div class="tp act" id="tp-all"><div id="prod-all-list"></div></div>
   <div class="tp" id="tp-w"><div id="prod-w-list"></div></div>
   <div class="tp" id="tp-p"><div id="prod-p-list"></div></div>
@@ -257,6 +258,9 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <div class="card">
       <div class="card-t">Generate Script</div>
       <div class="fg"><label class="fl">Pilih Produk dari Master</label>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <input type="text" class="fi" id="search-sg-prod" placeholder="🔍 Cari nama produk..." oninput="filterSelectOptions('search-sg-prod', 'sg-prod')" style="flex:1;font-size:10px;">
+        </div>
         <select class="fi" id="sg-prod" onchange="prefillSG()"><option value="">— pilih atau isi manual —</option></select>
       </div>
       <div class="fg"><label class="fl">Nama / Jenis Produk *</label>
@@ -279,6 +283,9 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         </div>
       </div>
       <div class="fg"><label class="fl">Simpan ke produk (opsional)</label>
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <input type="text" class="fi" id="search-sg-save" placeholder="🔍 Cari nama produk..." oninput="filterSelectOptions('search-sg-save', 'sg-save-prod')" style="flex:1;font-size:10px;">
+        </div>
         <select class="fi" id="sg-save-prod"><option value="">— jangan simpan —</option></select>
       </div>
       <button class="btn btn-p" style="width:100%" id="sg-btn" onclick="genScript()">✦ Generate 3 Variasi (AI)</button>
@@ -487,6 +494,7 @@ Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
 <div class="overlay" id="modal-assign">
   <div class="modal">
     <div class="modal-t" id="assign-title">Assign Produk ke Slot</div>
+    <input type="text" class="fi" id="search-assign" placeholder="🔍 Cari produk..." oninput="filterAssign()" style="margin-bottom:8px">
     <div id="assign-list" style="max-height:300px;overflow-y:auto;display:grid;gap:4px"></div>
     <div style="margin-top:10px;text-align:right"><button class="btn btn-g" onclick="closeModal('modal-assign')">Tutup</button></div>
   </div>

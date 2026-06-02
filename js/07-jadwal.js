@@ -238,6 +238,8 @@ function openAssign(di,si){
   assignTarget={di,si};
   const ps=S.products.filter(p=>p.klasifikasi!=='DROP');
   document.getElementById('assign-title').textContent=`Assign ke ${schedData[di].slots[si].time} — ${schedData[di].dn}`;
+  const searchEl = document.getElementById('search-assign');
+  if(searchEl) searchEl.value = '';
   document.getElementById('assign-list').innerHTML=ps.map(p=>`
     <div class="hk-item" style="cursor:pointer" onclick="doAssign('${p.id}')">
       ${bH(p.klasifikasi)}
@@ -251,3 +253,14 @@ function doAssign(pid){
   closeModal('modal-assign');renderSchedOutput();toast('Di-assign');
 }
 function doAssignEmpty(){schedData[assignTarget.di].slots[assignTarget.si].prod=null;closeModal('modal-assign');renderSchedOutput();}
+
+// ============================================================
+// SEARCH ASSIGN PRODUK
+// ============================================================
+function filterAssign() {
+  const q = document.getElementById('search-assign').value.toLowerCase();
+  document.querySelectorAll('#assign-list .hk-item').forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.style.display = text.includes(q) ? '' : 'none';
+  });
+}

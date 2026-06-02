@@ -175,3 +175,14 @@ function saveNewProd(){
   refreshScores();save();closeModal('modal-add');renderProduk();toast('Disimpan');
   ['add-nama','add-jenis','add-h','add-k','add-l'].forEach(id=>document.getElementById(id).value='');
 }
+
+// ============================================================
+// SEARCH MASTER PRODUK
+// ============================================================
+function filterMaster() {
+  const q = document.getElementById('search-master').value.toLowerCase();
+  document.querySelectorAll('#page-produk .prod-card').forEach(card => {
+    const text = card.textContent.toLowerCase();
+    card.style.display = text.includes(q) ? '' : 'none';
+  });
+}
