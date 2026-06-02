@@ -162,17 +162,17 @@ function dlv(id){document.getElementById(id).classList.remove('dov');}
 function ddr(e){e.preventDefault();dlv('iz-m');const f=e.dataTransfer.files[0];if(f)processFile(f);}
 function handleFile(inp){if(inp.files[0])processFile(inp.files[0]);}
 function pv(v){if(!v&&v!==0)return 0;const s=String(v).replace(/[Rp%\s,]/g,'').replace(/\./g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
-function fk(row, ...keys) {
-  const rowKeys = Object.keys(row);
-  for (const k of keys) {
-    const nk = k.toLowerCase().replace(/[\s._]/g, '');
-    const f = rowKeys.find(rk => rk.toLowerCase().replace(/[\s._]/g, '') === nk);
-    if (f !== undefined) return row[f];
+function fk(row,...keys){
+  const rowKeys=Object.keys(row);
+  for(const k of keys){
+    const nk=k.toLowerCase().replace(/[\s._]/g,'');
+    const f=rowKeys.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'')===nk);
+    if(f!==undefined)return row[f];
   }
-  for (const k of keys) {
-    const nk = k.toLowerCase().replace(/[\s._]/g, '');
-    const f = rowKeys.find(rk => rk.toLowerCase().replace(/[\s._]/g, '').includes(nk));
-    if (f !== undefined) return row[f];
+  for(const k of keys){
+    const nk=k.toLowerCase().replace(/[\s._]/g,'');
+    const f=rowKeys.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(nk));
+    if(f!==undefined)return row[f];
   }
   return '';
 }
@@ -253,7 +253,7 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
       S.contents[dupIdx].viewsTotal=Math.max(S.contents[dupIdx].viewsTotal||0,viewsTotal);
-      if(jam && !S.contents[dupIdx].jam) S.contents[dupIdx].jam=jam;
+      if(jam&&!S.contents[dupIdx].jam)S.contents[dupIdx].jam=jam;
       if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
         S.contents[dupIdx].periode=periode;
         S.contents[dupIdx].periodeStart=pStart;

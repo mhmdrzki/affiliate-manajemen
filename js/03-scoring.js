@@ -114,12 +114,13 @@ function classifyP(p,mode){
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
   const ts=p.topsisScore||0;
   if(mode==='topsis'){
-    if(ts>=0.50)return 'WINNING';
-    if(sold>=3&&ts>=0.35)return 'WINNING';
+    const isConsistent = (p.spreadDays >= 2) && (sold >= 2);
+    if(ts>=0.65)return 'WINNING';
+    if(isConsistent&&sold>=3&&ts>=0.35)return 'WINNING';
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
-    if(ts>=0.25)return 'POTENTIAL';
+    if(ts>=0.30)return 'POTENTIAL';
+    if(sold>=1&&ts>=0.15)return 'POTENTIAL';
     if(ctr>0.5&&n>=2)return 'POTENTIAL';
-    if(sold>=1)return 'POTENTIAL';
     return 'MONITOR';
   }
   // benchmark (frequency-based)
@@ -194,10 +195,9 @@ function recomputeProductStats() {
       const ageContentDays = Math.max(0, (now - postDate) / 86400000);
       const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
 
+      prod.nVideo++;
       const vTotal = c.viewsTotal || c.views || 0;
       prod.maxViews = Math.max(prod.maxViews, vTotal);
-
-      prod.nVideo++;
       if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
         prod.uploadDates.push(c.tanggal);
 
@@ -229,8 +229,8 @@ function analyzePersonalPatterns() {
       const m = c.jam.match(/^(\d{2}):\d{2}/);
       if (m) hStr = m[1] + ':00';
     }
-    const ds = c.tanggal || c.periode || '';
     if (!hStr) {
+      const ds = c.tanggal || c.periode || '';
       const m = ds.match(/\b(\d{2}):\d{2}\b/);
       if (m) hStr = m[1] + ':00';
     }
@@ -242,6 +242,7 @@ function analyzePersonalPatterns() {
     }
 
     // Parse Day
+    const ds = c.tanggal || c.periode || '';
     const ts = parseDate(ds) || c.ts;
     if (ts) {
       const dn = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(ts).getDay()];
