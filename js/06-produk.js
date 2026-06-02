@@ -38,6 +38,7 @@ function renderPList(elId,ps){
         <div class="pstat">Spread <span>${p.spreadDays||0}hr</span></div>
         <div class="pstat">MaxViews <span>${fmt(p.maxViews||0)}</span></div>
         ${p.totalItemsSold>0?`<div class="pstat">Sold <span style="color:var(--gr)">${p.totalItemsSold}</span></div>`:''}
+        ${(p.salesConsistency||0)>0?`<div class="pstat">Konsisten <span style="color:var(--ac2)">${p.salesConsistency}vid</span></div>`:''}
         ${p.totalGMV>0?`<div class="pstat">GMV <span style="color:var(--pu)">Rp${fmt(p.totalGMV)}</span></div>`:''}
         ${p.harga?`<div class="pstat">Harga <span>Rp${fmt(p.harga)}</span></div>`:''}
         ${p.komisi?`<div class="pstat">Komisi <span>Rp${fmt(p.komisi)}/unit</span></div>`:''}

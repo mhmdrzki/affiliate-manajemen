@@ -163,17 +163,11 @@ function ddr(e){e.preventDefault();dlv('iz-m');const f=e.dataTransfer.files[0];i
 function handleFile(inp){if(inp.files[0])processFile(inp.files[0]);}
 function pv(v){if(!v&&v!==0)return 0;const s=String(v).replace(/[Rp%\s,]/g,'').replace(/\./g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
 function fk(row,...keys){
-  const rowKeys=Object.keys(row);
-  for(const k of keys){
-    const nk=k.toLowerCase().replace(/[\s._]/g,'');
-    const f=rowKeys.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'')===nk);
-    if(f!==undefined)return row[f];
-  }
-  for(const k of keys){
-    const nk=k.toLowerCase().replace(/[\s._]/g,'');
-    const f=rowKeys.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(nk));
-    if(f!==undefined)return row[f];
-  }
+  const rks=Object.keys(row);
+  // Fase 1: Exact match (normalized)
+  for(const k of keys){const nk=k.toLowerCase().replace(/[\s._]/g,'');const f=rks.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'')===nk);if(f!==undefined)return row[f];}
+  // Fase 2: Substring match (fallback)
+  for(const k of keys){const nk=k.toLowerCase().replace(/[\s._]/g,'');const f=rks.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(nk));if(f!==undefined)return row[f];}
   return '';
 }
 
@@ -230,15 +224,15 @@ function importRows(rows,filename){
     const produk=String(fk(row,'nama produk','namaproduk','produk','product')||'').trim();
     const desc=String(fk(row,'deskripsi full','deskripsi video','deskripsi','description')||'').trim();
     if(!produk||produk.length<2||produk.toLowerCase().startsWith('nama')){skipped++;return;}
-    const gmv=pv(fk(row,'attr. gmv','attr gmv','gmv'));
-    const sold=pv(fk(row,'attr. items sold','items sold','itemssold','terjual','sold'));
-    const ctr=pv(fk(row,'ctr'));
-    const ctor=pv(fk(row,'ctor'));
+    const gmv=pv(fk(row,'attr_gmv','attr. gmv','attr gmv','gmv'));
+    const sold=pv(fk(row,'attr_items_sold','attr. items sold','items sold','itemssold','terjual','sold'));
+    const ctr=pv(fk(row,'ctr_percent','ctr'));
+    const ctor=pv(fk(row,'ctor_percent','ctor'));
     const aov=pv(fk(row,'aov'));
     const views=pv(fk(row,'views'));
-    const viewsTotal=pv(fk(row,'total views'));
-    const link=String(fk(row,'link','url')||'').trim();
-    const tanggal=String(fk(row,'tanggal posting','tanggal upload','tanggal','date')||'').trim();
+    const viewsTotal=pv(fk(row,'total views','totalviews'));
+    const link=String(fk(row,'link video','link','url')||'').trim();
+    const tanggal=String(fk(row,'tanggal upload','tanggal posting','tanggal','date')||'').trim();
     const jam=String(fk(row,'jam upload','jam posting','jam','time')||'').trim();
     const durasi=String(fk(row,'durasi','duration')||'').trim();
     const periode=String(fk(row,'periode data','periode')||'').trim();
@@ -253,7 +247,7 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
       S.contents[dupIdx].viewsTotal=Math.max(S.contents[dupIdx].viewsTotal||0,viewsTotal);
-      if(jam&&!S.contents[dupIdx].jam)S.contents[dupIdx].jam=jam;
+      if(jam&&!S.contents[dupIdx].jam) S.contents[dupIdx].jam=jam;
       if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
         S.contents[dupIdx].periode=periode;
         S.contents[dupIdx].periodeStart=pStart;
@@ -277,7 +271,7 @@ function importRows(rows,filename){
       else if(/creatine|protein|suplemen|vitamin/.test(pn)){cat='olahraga';jenis='Suplemen';}
       else if(/kalung|gelang|cincin|aksesoris/.test(pn)){cat='fashion';jenis='Aksesoris';}
       else if(/baju|dress|rok|kemeja|polo/.test(pn)){cat='fashion';jenis='Baju';}
-      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'};
+      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,salesConsistency:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'};
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;

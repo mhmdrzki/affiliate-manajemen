@@ -42,6 +42,7 @@ prod = {
   avgCTR: Number,          // Rata-rata CTR berbobot eksponensial (EMA .7 / .3)
   avgCTOR: Number,         // Rata-rata CTOR berbobot eksponensial (EMA .7 / .3)
   uploadDates: [],         // Kumpulan tanggal upload unik
+  salesConsistency: Number,// Jumlah video unik yang menghasilkan minimal 1 penjualan
   benchScore: Number,      // Skor keunggulan akhir (0-100) hasil SAW / TOPSIS
   topsisScore: Number,     // Skor TOPSIS murni (0.000 - 1.000) atau null jika SAW mode
   klasifikasi: String,     // Status klasifikasi ('WINNING'|'POTENTIAL'|'MONITOR'|'DROP')
@@ -55,6 +56,7 @@ content = {
   produk: String,      // Nama produk terasosiasi (Relasi manual name-match ke prod.nama)
   desc: String,        // Caption / deskripsi video TikTok
   tanggal: String,     // Tanggal posting terdeteksi
+  jam: String,         // Jam upload terdeteksi dari kolom "Jam Upload" (format HH:MM)
   durasi: String,      // Durasi video dalam detik
   periode: String,     // Periode data analitik berjalan (string asli dari Excel)
   periodeStart: Number,// Timestamp milidetik awal rentang periode (parsed dari kolom periode)
@@ -64,7 +66,8 @@ content = {
   ctr: Number,         // Click-Through Rate (%)
   ctor: Number,        // Click-to-Order Rate (%)
   aov: Number,         // Rata-rata nilai per transaksi (AOV)
-  views: Number,       // Jumlah penayangan video
+  views: Number,       // Jumlah penayangan video (periode analitik berjalan)
+  viewsTotal: Number,  // Jumlah penayangan video sepanjang masa (lifetime/total)
   link: String,        // URL tautan video TikTok
   estK: Number,        // Estimasi komisi (itemsSold * prod.komisi)
   ts: Number           // Timestamp internal pembuatan objek

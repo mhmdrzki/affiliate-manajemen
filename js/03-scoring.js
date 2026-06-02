@@ -68,7 +68,7 @@ let currentSlotSource='Bawaan';
 
 // ── WEIGHTS ──────────────────────────────────────────────────
 const W_BENCH={nVideo:.50,spreadDays:.25,hasPrestasi:.15,maxViews:.10};
-const W_TOPSIS={avgCTOR:.35,avgCTR:.25,totalItemsSold:.20,totalGMV:.12,nVideo:.08};
+const W_TOPSIS={salesConsistency:.30,avgCTOR:.25,avgCTR:.20,totalItemsSold:.15,totalGMV:.10};
 
 // ── BENCHMARK SCORING (normalized SAW) ───────────────────────
 function scoreBenchmark(ps){
@@ -91,7 +91,13 @@ function scoreBenchmark(ps){
 function scoreTOPSIS(ps){
   if(!ps.length)return;
   const keys=Object.keys(W_TOPSIS);
-  const raw=ps.map(p=>({avgCTOR:p.avgCTOR||0,avgCTR:p.avgCTR||0,totalItemsSold:Math.log1p(p.totalItemsSold||0),totalGMV:Math.log1p((p.totalGMV||0)/10000),nVideo:Math.log1p(p.nVideo||0)}));
+  const raw=ps.map(p=>({
+    salesConsistency:p.salesConsistency||0,
+    avgCTOR:p.avgCTOR||0,
+    avgCTR:p.avgCTR||0,
+    totalItemsSold:Math.log1p(p.totalItemsSold||0),
+    totalGMV:Math.log1p((p.totalGMV||0)/10000)
+  }));
   const colNorm={};
   keys.forEach(k=>{colNorm[k]=Math.sqrt(raw.reduce((s,r)=>s+r[k]**2,0))||1;});
   const wn=raw.map(r=>{const row={};keys.forEach(k=>row[k]=(r[k]/colNorm[k])*W_TOPSIS[k]);return row;});
@@ -112,21 +118,21 @@ function classifyP(p,mode){
   if ((p.nVideo || 0) === 0) return 'UJI COBA';
   const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
-  const ts=p.topsisScore||0;
+  const ts=p.topsisScore||0,sc=p.salesConsistency||0;
   if(mode==='topsis'){
-    const isConsistent = (p.spreadDays >= 2) && (sold >= 2);
     if(ts>=0.65)return 'WINNING';
-    if(isConsistent&&sold>=3&&ts>=0.35)return 'WINNING';
+    if(sc>=3&&ts>=0.40)return 'WINNING';
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
     if(ts>=0.30)return 'POTENTIAL';
-    if(sold>=1&&ts>=0.15)return 'POTENTIAL';
+    if(sc>=1||sold>=1)return 'POTENTIAL';
     if(ctr>0.5&&n>=2)return 'POTENTIAL';
     return 'MONITOR';
   }
-  // benchmark (frequency-based)
+  // benchmark (frequency-based) — diperbarui dengan konsistensi
   if(n>=5||(n>=3&&(sold>0||gmv>0)))return 'WINNING';
+  if(sc>=3&&n>=3)return 'WINNING';
   if(n>=3&&mv<2000&&ctr===0&&sold===0)return 'DROP';
-  if(n>=3||(n>=2&&ctr>0))return 'POTENTIAL';
+  if(n>=3||(n>=2&&(ctr>0||sc>=1)))return 'POTENTIAL';
   return 'MONITOR';
 }
 function slotR(k){return k==='WINNING'?'16:00/18:00':k==='POTENTIAL'?'10:00/14:00':k==='DROP'?'—':k==='UJI COBA'?'08:00/10:00':'08:00/12:00';}
@@ -168,7 +174,7 @@ function recomputeProductStats() {
   S.products.forEach(p => {
     p.nVideo = 0; p.spreadDays = 0; p.maxViews = 0; p.avgViews = 0;
     p.totalItemsSold = 0; p.totalGMV = 0; p.avgCTR = 0; p.avgCTOR = 0;
-    p.uploadDates = []; p.gmvAktif = false;
+    p.salesConsistency = 0; p.uploadDates = []; p.gmvAktif = false;
   });
 
   const byProd = {};
@@ -189,6 +195,7 @@ function recomputeProductStats() {
     });
 
     let totalWeightedViews = 0, totalWeight = 0;
+    let consistentSalesCount = 0;
 
     rows.forEach(c => {
       const postDate = c.tanggal ? parseDate(c.tanggal) : c.ts;
@@ -204,14 +211,17 @@ function recomputeProductStats() {
       totalWeightedViews += (c.views || 0) * decayContent;
       totalWeight += decayContent;
       
+      // Penjualan mutlak TANPA decay
       prod.totalItemsSold += (c.itemsSold || 0);
       prod.totalGMV += (c.gmv || 0);
       if ((c.gmv || 0) > 0) prod.gmvAktif = true;
+      if ((c.itemsSold || 0) > 0) consistentSalesCount++;
 
       prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
       prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.7 + (c.ctor || 0) * 0.3) : (c.ctor || 0);
     });
 
+    prod.salesConsistency = consistentSalesCount;
     prod.spreadDays = prod.uploadDates.length;
     prod.avgViews = totalWeight > 0 ? totalWeightedViews / totalWeight : 0;
   });
@@ -225,15 +235,18 @@ function analyzePersonalPatterns() {
 
   S.contents.forEach(c => {
     let hStr = '';
+    // Prioritas 1: Baca dari properti jam terpisah (hasil impor baru)
     if (c.jam) {
-      const m = c.jam.match(/^(\d{2}):\d{2}/);
-      if (m) hStr = m[1] + ':00';
+      const m = c.jam.match(/^(\d{1,2}):\d{2}/);
+      if (m) hStr = m[1].padStart(2,'0') + ':00';
     }
+    // Prioritas 2: Fallback dari tanggal/periode (data lama)
     if (!hStr) {
       const ds = c.tanggal || c.periode || '';
       const m = ds.match(/\b(\d{2}):\d{2}\b/);
       if (m) hStr = m[1] + ':00';
     }
+
     if (hStr) {
       if (!jamMap[hStr]) jamMap[hStr] = { count: 0, views: 0 };
       jamMap[hStr].count++;
