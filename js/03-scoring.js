@@ -91,7 +91,7 @@ function scoreBenchmark(ps){
 function scoreTOPSIS(ps){
   if(!ps.length)return;
   const keys=Object.keys(W_TOPSIS);
-  const raw=ps.map(p=>({avgCTOR:p.avgCTOR||0,avgCTR:p.avgCTR||0,totalItemsSold:p.totalItemsSold||0,totalGMV:p.totalGMV||0,nVideo:p.nVideo||0}));
+  const raw=ps.map(p=>({avgCTOR:p.avgCTOR||0,avgCTR:p.avgCTR||0,totalItemsSold:Math.log1p(p.totalItemsSold||0),totalGMV:Math.log1p((p.totalGMV||0)/10000),nVideo:Math.log1p(p.nVideo||0)}));
   const colNorm={};
   keys.forEach(k=>{colNorm[k]=Math.sqrt(raw.reduce((s,r)=>s+r[k]**2,0))||1;});
   const wn=raw.map(r=>{const row={};keys.forEach(k=>row[k]=(r[k]/colNorm[k])*W_TOPSIS[k]);return row;});
@@ -114,12 +114,12 @@ function classifyP(p,mode){
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
   const ts=p.topsisScore||0;
   if(mode==='topsis'){
-    if(ts>=0.65)return 'WINNING';
-    if(sold>=3&&ts>=0.30)return 'WINNING';
+    if(ts>=0.50)return 'WINNING';
+    if(sold>=3&&ts>=0.35)return 'WINNING';
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
-    if(ts>=0.30)return 'POTENTIAL';
+    if(ts>=0.25)return 'POTENTIAL';
     if(ctr>0.5&&n>=2)return 'POTENTIAL';
-    if(sold>=1&&ts>=0.15)return 'POTENTIAL';
+    if(sold>=1)return 'POTENTIAL';
     return 'MONITOR';
   }
   // benchmark (frequency-based)
@@ -194,20 +194,18 @@ function recomputeProductStats() {
       const ageContentDays = Math.max(0, (now - postDate) / 86400000);
       const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
 
-      const transDate = c.periodeEnd || (c.tanggal ? parseDate(c.tanggal) : 0) || c.ts;
-      const ageTransDays = Math.max(0, (now - transDate) / 86400000);
-      const decayTrans = Math.max(0.2, 1 - ageTransDays / 60);
+      const vTotal = c.viewsTotal || c.views || 0;
+      prod.maxViews = Math.max(prod.maxViews, vTotal);
 
       prod.nVideo++;
-      prod.maxViews = Math.max(prod.maxViews, c.views || 0);
       if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
         prod.uploadDates.push(c.tanggal);
 
       totalWeightedViews += (c.views || 0) * decayContent;
       totalWeight += decayContent;
       
-      prod.totalItemsSold += (c.itemsSold || 0) * decayTrans;
-      prod.totalGMV += (c.gmv || 0) * decayTrans;
+      prod.totalItemsSold += (c.itemsSold || 0);
+      prod.totalGMV += (c.gmv || 0);
       if ((c.gmv || 0) > 0) prod.gmvAktif = true;
 
       prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
@@ -216,8 +214,6 @@ function recomputeProductStats() {
 
     prod.spreadDays = prod.uploadDates.length;
     prod.avgViews = totalWeight > 0 ? totalWeightedViews / totalWeight : 0;
-    prod.totalItemsSold = Math.round(prod.totalItemsSold);
-    prod.totalGMV = Math.round(prod.totalGMV);
   });
 }
 
@@ -228,12 +224,17 @@ function analyzePersonalPatterns() {
   let totalVideoWithHours = 0;
 
   S.contents.forEach(c => {
+    let hStr = '';
+    if (c.jam) {
+      const m = c.jam.match(/^(\d{2}):\d{2}/);
+      if (m) hStr = m[1] + ':00';
+    }
     const ds = c.tanggal || c.periode || '';
-    
-    // Parse Hour
-    const m = ds.match(/\b(\d{2}):\d{2}\b/);
-    if (m) {
-      const hStr = m[1] + ':00';
+    if (!hStr) {
+      const m = ds.match(/\b(\d{2}):\d{2}\b/);
+      if (m) hStr = m[1] + ':00';
+    }
+    if (hStr) {
       if (!jamMap[hStr]) jamMap[hStr] = { count: 0, views: 0 };
       jamMap[hStr].count++;
       jamMap[hStr].views += (c.views || 0);
