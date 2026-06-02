@@ -1,7 +1,9 @@
 /*
-Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS & SAW), Anomali Deteksi, dan Update Badge
+Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) + AI-Emulator Metrik (CS/CE/Afinitas), Anomali Deteksi, dan Update Badge
 Caller: 04-nav.js, 05-dashboard.js, 06-produk.js, 08-views.js
 Dependensi: S, save (dari 02-state)
+Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies
+Side Effects: LocalStorage write (via save())
 */
 
 // ============================================================
@@ -68,7 +70,7 @@ let currentSlotSource='Bawaan';
 
 // ── WEIGHTS ──────────────────────────────────────────────────
 const W_BENCH={nVideo:.50,spreadDays:.25,hasPrestasi:.15,maxViews:.10};
-const W_TOPSIS={salesConsistency:.30,avgCTOR:.25,avgCTR:.20,totalItemsSold:.15,totalGMV:.10};
+const W_TOPSIS={avgCTOR:.35,avgCTR:.25,totalItemsSold:.20,totalGMV:.12,nVideo:.08};
 
 // ── BENCHMARK SCORING (normalized SAW) ───────────────────────
 function scoreBenchmark(ps){
@@ -91,12 +93,13 @@ function scoreBenchmark(ps){
 function scoreTOPSIS(ps){
   if(!ps.length)return;
   const keys=Object.keys(W_TOPSIS);
+  // LOG-DAMPENING: Redam outlier pada totalItemsSold, totalGMV (skala ribuan), dan nVideo
   const raw=ps.map(p=>({
-    salesConsistency:p.salesConsistency||0,
-    avgCTOR:p.avgCTOR||0,
-    avgCTR:p.avgCTR||0,
-    totalItemsSold:Math.log1p(p.totalItemsSold||0),
-    totalGMV:Math.log1p((p.totalGMV||0)/10000)
+    avgCTOR: p.avgCTOR||0,
+    avgCTR: p.avgCTR||0,
+    totalItemsSold: Math.log1p(p.totalItemsSold||0),
+    totalGMV: Math.log1p((p.totalGMV||0)/10000),
+    nVideo: Math.log1p(p.nVideo||0)
   }));
   const colNorm={};
   keys.forEach(k=>{colNorm[k]=Math.sqrt(raw.reduce((s,r)=>s+r[k]**2,0))||1;});
@@ -118,21 +121,28 @@ function classifyP(p,mode){
   if ((p.nVideo || 0) === 0) return 'UJI COBA';
   const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
-  const ts=p.topsisScore||0,sc=p.salesConsistency||0;
   if(mode==='topsis'){
-    if(ts>=0.65)return 'WINNING';
-    if(sc>=3&&ts>=0.40)return 'WINNING';
+    const sc = p.salesConsistency||0, ce = p.conversionEfficiency||0, ts = p.topsisScore||0;
+    // WINNING (4 Jalur AI-Emulator)
+    if(sold>=4||gmv>=500000)return 'WINNING'; // 1. Skala Volume
+    if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 2. Konsistensi (Rutin)
+    if(ce>=5.0&&sold>=2&&p.avgViews>200)return 'WINNING'; // 3. Efisiensi Konversi Trafik
+    if(ts>=0.60)return 'WINNING'; // 4. Potensi Viral
+    
+    // DROP
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
-    if(ts>=0.30)return 'POTENTIAL';
-    if(sc>=1||sold>=1)return 'POTENTIAL';
+    
+    // POTENTIAL
+    if(sold>=1)return 'POTENTIAL';
+    if(sc>0)return 'POTENTIAL';
+    if(ts>=0.25)return 'POTENTIAL';
     if(ctr>0.5&&n>=2)return 'POTENTIAL';
     return 'MONITOR';
   }
-  // benchmark (frequency-based) — diperbarui dengan konsistensi
+  // benchmark (frequency-based)
   if(n>=5||(n>=3&&(sold>0||gmv>0)))return 'WINNING';
-  if(sc>=3&&n>=3)return 'WINNING';
   if(n>=3&&mv<2000&&ctr===0&&sold===0)return 'DROP';
-  if(n>=3||(n>=2&&(ctr>0||sc>=1)))return 'POTENTIAL';
+  if(n>=3||(n>=2&&ctr>0))return 'POTENTIAL';
   return 'MONITOR';
 }
 function slotR(k){return k==='WINNING'?'16:00/18:00':k==='POTENTIAL'?'10:00/14:00':k==='DROP'?'—':k==='UJI COBA'?'08:00/10:00':'08:00/12:00';}
@@ -171,10 +181,19 @@ function parseDate(ds) {
 
 function recomputeProductStats() {
   const now = Date.now();
+  
+  // 1. Inisialisasi State AI-Emulator untuk setiap produk
   S.products.forEach(p => {
     p.nVideo = 0; p.spreadDays = 0; p.maxViews = 0; p.avgViews = 0;
     p.totalItemsSold = 0; p.totalGMV = 0; p.avgCTR = 0; p.avgCTOR = 0;
-    p.salesConsistency = 0; p.uploadDates = []; p.gmvAktif = false;
+    p.uploadDates = []; p.gmvAktif = false;
+    
+    // Metrik Baru
+    p.salesVideos = 0;              // Jumlah video yang menghasilkan >= 1 sale
+    p.salesConsistency = 0;         // Rasio (salesVideos / nVideo)
+    p.conversionEfficiency = 0;     // Sales per 10k views
+    p.bestDays = [];                // Hari terbaik [Senin, dll]
+    p.bestHours = [];               // Jam terbaik [08:00, dll]
   });
 
   const byProd = {};
@@ -194,36 +213,68 @@ function recomputeProductStats() {
       return da - db;
     });
 
-    let totalWeightedViews = 0, totalWeight = 0;
-    let consistentSalesCount = 0;
+    let totalWeightedViews = 0, totalWeight = 0, totalViewsRaw = 0;
+    const dayAff = {}, hourAff = {}; // Agregasi afinitas
 
     rows.forEach(c => {
       const postDate = c.tanggal ? parseDate(c.tanggal) : c.ts;
+      
+      // Decay HANYA pada views untuk menilai momentum traffic, TIDAK pada sales/GMV
       const ageContentDays = Math.max(0, (now - postDate) / 86400000);
       const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
 
       prod.nVideo++;
-      const vTotal = c.viewsTotal || c.views || 0;
-      prod.maxViews = Math.max(prod.maxViews, vTotal);
-      if (c.tanggal && !prod.uploadDates.includes(c.tanggal))
-        prod.uploadDates.push(c.tanggal);
+      prod.maxViews = Math.max(prod.maxViews, c.viewsTotal || c.views || 0);
+      totalViewsRaw += (c.views || 0);
+
+      if (c.tanggal && !prod.uploadDates.includes(c.tanggal)) prod.uploadDates.push(c.tanggal);
 
       totalWeightedViews += (c.views || 0) * decayContent;
       totalWeight += decayContent;
       
-      // Penjualan mutlak TANPA decay
+      // Akumulasi Mutlak Penjualan & GMV (TANPA DECAY)
       prod.totalItemsSold += (c.itemsSold || 0);
       prod.totalGMV += (c.gmv || 0);
       if ((c.gmv || 0) > 0) prod.gmvAktif = true;
-      if ((c.itemsSold || 0) > 0) consistentSalesCount++;
+
+      if ((c.itemsSold || 0) > 0) prod.salesVideos++;
+
+      // Agregasi Afinitas Waktu (Hari)
+      if (postDate) {
+        const dName = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(postDate).getDay()];
+        if (!dayAff[dName]) dayAff[dName] = { s: 0, v: 0 };
+        dayAff[dName].s += (c.itemsSold || 0);
+        dayAff[dName].v += (c.views || 0);
+      }
+
+      // Agregasi Afinitas Waktu (Jam) - parsing dari c.jamUpload "08:09" -> "08:00"
+      const rJam = c.jamUpload || (c.tanggal && c.tanggal.match(/\b(\d{2}):\d{2}\b/)?.[0]) || '';
+      const m = rJam.match(/\b(\d{2}):/);
+      if (m) {
+        const hStr = m[1] + ':00';
+        if (!hourAff[hStr]) hourAff[hStr] = { s: 0, v: 0 };
+        hourAff[hStr].s += (c.itemsSold || 0);
+        hourAff[hStr].v += (c.views || 0);
+      }
 
       prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
       prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.7 + (c.ctor || 0) * 0.3) : (c.ctor || 0);
     });
 
-    prod.salesConsistency = consistentSalesCount;
     prod.spreadDays = prod.uploadDates.length;
     prod.avgViews = totalWeight > 0 ? totalWeightedViews / totalWeight : 0;
+    
+    // Kalkulasi Metrik AI-Emulator
+    prod.salesConsistency = prod.nVideo > 0 ? (prod.salesVideos / prod.nVideo) : 0;
+    prod.conversionEfficiency = totalViewsRaw > 0 ? (prod.totalItemsSold / totalViewsRaw) * 10000 : 0;
+
+    // Pemilihan Afinitas (Prioritas: Sales terbesar, lalu fallback ke Views)
+    prod.bestDays = Object.entries(dayAff)
+      .sort((a,b) => (b[1].s - a[1].s) || (b[1].v - a[1].v))
+      .slice(0,2).map(e => e[0]);
+    prod.bestHours = Object.entries(hourAff)
+      .sort((a,b) => (b[1].s - a[1].s) || (b[1].v - a[1].v))
+      .slice(0,2).map(e => e[0]);
   });
 }
 
@@ -234,20 +285,12 @@ function analyzePersonalPatterns() {
   let totalVideoWithHours = 0;
 
   S.contents.forEach(c => {
-    let hStr = '';
-    // Prioritas 1: Baca dari properti jam terpisah (hasil impor baru)
-    if (c.jam) {
-      const m = c.jam.match(/^(\d{1,2}):\d{2}/);
-      if (m) hStr = m[1].padStart(2,'0') + ':00';
-    }
-    // Prioritas 2: Fallback dari tanggal/periode (data lama)
-    if (!hStr) {
-      const ds = c.tanggal || c.periode || '';
-      const m = ds.match(/\b(\d{2}):\d{2}\b/);
-      if (m) hStr = m[1] + ':00';
-    }
-
-    if (hStr) {
+    const ds = c.tanggal || c.periode || '';
+    
+    // Parse Hour
+    const m = ds.match(/\b(\d{2}):\d{2}\b/);
+    if (m) {
+      const hStr = m[1] + ':00';
       if (!jamMap[hStr]) jamMap[hStr] = { count: 0, views: 0 };
       jamMap[hStr].count++;
       jamMap[hStr].views += (c.views || 0);
@@ -255,7 +298,6 @@ function analyzePersonalPatterns() {
     }
 
     // Parse Day
-    const ds = c.tanggal || c.periode || '';
     const ts = parseDate(ds) || c.ts;
     if (ts) {
       const dn = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(ts).getDay()];

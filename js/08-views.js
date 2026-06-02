@@ -1,7 +1,9 @@
 /*
-Tujuan: Modul Bank Teks, Script Generator (AI), Import Analytics (SheetJS/CSV), Benchmark, dan Inisialisasi Aplikasi
+Tujuan: Modul Bank Teks, Script Generator (AI), Import Analytics (SheetJS/CSV) Multi-Views/Jam, Benchmark, dan Inisialisasi Aplikasi
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench
+Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
 // ============================================================
@@ -162,14 +164,7 @@ function dlv(id){document.getElementById(id).classList.remove('dov');}
 function ddr(e){e.preventDefault();dlv('iz-m');const f=e.dataTransfer.files[0];if(f)processFile(f);}
 function handleFile(inp){if(inp.files[0])processFile(inp.files[0]);}
 function pv(v){if(!v&&v!==0)return 0;const s=String(v).replace(/[Rp%\s,]/g,'').replace(/\./g,'').trim();const n=parseFloat(s);return isNaN(n)?0:n;}
-function fk(row,...keys){
-  const rks=Object.keys(row);
-  // Fase 1: Exact match (normalized)
-  for(const k of keys){const nk=k.toLowerCase().replace(/[\s._]/g,'');const f=rks.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'')===nk);if(f!==undefined)return row[f];}
-  // Fase 2: Substring match (fallback)
-  for(const k of keys){const nk=k.toLowerCase().replace(/[\s._]/g,'');const f=rks.find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(nk));if(f!==undefined)return row[f];}
-  return '';
-}
+function fk(row,...keys){for(const k of keys){const f=Object.keys(row).find(rk=>rk.toLowerCase().replace(/[\s._]/g,'').includes(k.toLowerCase().replace(/[\s._]/g,'')));if(f!==undefined)return row[f];}return '';}
 
 function processFile(file){
   if(file.name.match(/\.xlsx?$/i) && typeof XLSX === 'undefined') {
@@ -222,7 +217,7 @@ function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
     const produk=String(fk(row,'nama produk','namaproduk','produk','product')||'').trim();
-    const desc=String(fk(row,'deskripsi full','deskripsi video','deskripsi','description')||'').trim();
+    const desc=String(fk(row,'deskripsi','description','deskripsi video')||'').trim();
     if(!produk||produk.length<2||produk.toLowerCase().startsWith('nama')){skipped++;return;}
     const gmv=pv(fk(row,'attr_gmv','attr. gmv','attr gmv','gmv'));
     const sold=pv(fk(row,'attr_items_sold','attr. items sold','items sold','itemssold','terjual','sold'));
@@ -230,10 +225,10 @@ function importRows(rows,filename){
     const ctor=pv(fk(row,'ctor_percent','ctor'));
     const aov=pv(fk(row,'aov'));
     const views=pv(fk(row,'views'));
-    const viewsTotal=pv(fk(row,'total views','totalviews'));
+    const viewsTotal=pv(fk(row,'total views','views_total','viewstotal'));
     const link=String(fk(row,'link video','link','url')||'').trim();
     const tanggal=String(fk(row,'tanggal upload','tanggal posting','tanggal','date')||'').trim();
-    const jam=String(fk(row,'jam upload','jam posting','jam','time')||'').trim();
+    const jamUpload=String(fk(row,'jam upload','jam','time')||'').trim();
     const durasi=String(fk(row,'durasi','duration')||'').trim();
     const periode=String(fk(row,'periode data','periode')||'').trim();
 
@@ -247,7 +242,7 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
       S.contents[dupIdx].viewsTotal=Math.max(S.contents[dupIdx].viewsTotal||0,viewsTotal);
-      if(jam&&!S.contents[dupIdx].jam) S.contents[dupIdx].jam=jam;
+      S.contents[dupIdx].jamUpload=jamUpload || S.contents[dupIdx].jamUpload || '';
       if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
         S.contents[dupIdx].periode=periode;
         S.contents[dupIdx].periodeStart=pStart;
@@ -271,11 +266,11 @@ function importRows(rows,filename){
       else if(/creatine|protein|suplemen|vitamin/.test(pn)){cat='olahraga';jenis='Suplemen';}
       else if(/kalung|gelang|cincin|aksesoris/.test(pn)){cat='fashion';jenis='Aksesoris';}
       else if(/baju|dress|rok|kemeja|polo/.test(pn)){cat='fashion';jenis='Baju';}
-      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,salesConsistency:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'};
+      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
-    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,jam,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,viewsTotal,link,estK,ts:Date.now()});
+    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,jamUpload,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,viewsTotal,link,estK,ts:Date.now()});
     added++;
   });
   S.importHistory.push({filename,added,merged,skipped,ts:new Date().toLocaleString('id'),total:S.contents.length});

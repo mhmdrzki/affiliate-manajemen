@@ -1,7 +1,9 @@
 /*
-Tujuan: Modul Master Produk (Render list, Generate Deskripsi dengan AI, Quick Add/Save, Delete)
+Tujuan: Modul Master Produk (Render list dengan metrik AI-Emulator CS/CE, Generate Deskripsi dengan AI, Quick Add/Save, Delete)
 Caller: 04-nav.js, 08-views.js, UI Events
 Dependensi: S, save, callGemini (02-state); bH, refreshScores (03-scoring); fmt (05-dashboard); toast (02-state); openModal, closeModal (04-nav)
+Main Functions: renderProduk, renderPList, delProd, openAddProd, openGenDesc, doGenDesc, saveNewProd
+Side Effects: LocalStorage write (via save()), Gemini API call, DOM rendering
 */
 
 // ============================================================
@@ -38,8 +40,11 @@ function renderPList(elId,ps){
         <div class="pstat">Spread <span>${p.spreadDays||0}hr</span></div>
         <div class="pstat">MaxViews <span>${fmt(p.maxViews||0)}</span></div>
         ${p.totalItemsSold>0?`<div class="pstat">Sold <span style="color:var(--gr)">${p.totalItemsSold}</span></div>`:''}
-        ${(p.salesConsistency||0)>0?`<div class="pstat">Konsisten <span style="color:var(--ac2)">${p.salesConsistency}vid</span></div>`:''}
         ${p.totalGMV>0?`<div class="pstat">GMV <span style="color:var(--pu)">Rp${fmt(p.totalGMV)}</span></div>`:''}
+        <div class="pstat" title="Sales Consistency: Persentase video pecah telur">CS <span style="color:#6EE7B7">${((p.salesConsistency||0)*100).toFixed(0)}%</span></div>
+        <div class="pstat" title="Conversion Efficiency: Penjualan per 10.000 views">CE <span style="color:#93C5FD">${(p.conversionEfficiency||0).toFixed(1)}/10k v</span></div>
+        ${p.bestDays && p.bestDays.length?`<div class="pstat" title="Hari Upload Terbaik">Hari <span style="color:var(--ac2)">${p.bestDays.join(',')}</span></div>`:''}
+        ${p.bestHours && p.bestHours.length?`<div class="pstat" title="Jam Upload Terbaik">Jam <span style="color:var(--ac2)">${p.bestHours.join(',')}</span></div>`:''}
         ${p.harga?`<div class="pstat">Harga <span>Rp${fmt(p.harga)}</span></div>`:''}
         ${p.komisi?`<div class="pstat">Komisi <span>Rp${fmt(p.komisi)}/unit</span></div>`:''}
         ${p.labelPrestasi&&p.labelPrestasi!=='-'?`<div class="pstat">Label <span>${p.labelPrestasi}</span></div>`:''}

@@ -1,7 +1,9 @@
 /*
-Tujuan: Modul Jadwal Konten (Render, Generator, Pengacak Hook/Proof/CTA)
+Tujuan: Modul Jadwal Konten (Render, Affinity-Based Generator, Pengacak Hook/Proof/CTA)
 Caller: 04-nav.js, 08-views.js (Init), UI Events
 Dependensi: S (02-state); PATS, PRIME_SLOTS, MID_SLOTS, bH (03-scoring); fmt (05-dashboard); openModal, closeModal (04-nav); toast (02-state)
+Main Functions: genSched, pickWithCooldown, buildSlotScript, renderSchedOutput
+Side Effects: LocalStorage write (via save())
 */
 
 // ============================================================
@@ -82,12 +84,26 @@ function genSched(){
   const monW = computeWeights(monitor);
   const ujiW = computeWeights(ujiCoba);
 
-  function pickWithCooldown(chains, cooldownMap, slotIdx) {
+  function pickWithCooldown(chains, cooldownMap, slotIdx, dName, hStr) {
     for (const poolW of chains) {
       if (!poolW.length) continue;
-      let validPool = poolW;
+      
+      // Hitung bobot kustom khusus untuk slot Hari/Jam INI (Affinity Boost)
+      const dynPool = poolW.map(item => {
+        const p = item.p;
+        let affinityBonus = 1.0;
+        if (p.bestDays && p.bestDays.includes(dName)) {
+          affinityBonus += 0.4;  // +40% bobot kecocokan hari
+        }
+        if (p.bestHours && p.bestHours.includes(hStr)) {
+          affinityBonus += 0.6;  // +60% bobot kecocokan jam
+        }
+        return { p, weight: item.weight * affinityBonus };
+      });
+
+      let validPool = dynPool;
       if (cbCooldown) {
-        validPool = poolW.filter(item => {
+        validPool = dynPool.filter(item => {
           const lastIdx = cooldownMap[item.p.id];
           if (lastIdx === undefined) return true;
           return (slotIdx - lastIdx) >= 2;
@@ -132,13 +148,13 @@ function genSched(){
     const daySlots=daySlotsTimes.map((time, si)=>{
       let prod, type, typeLabel;
       if(PRIME_SLOTS.includes(time)){
-        prod=pickWithCooldown([winW, potW, ujiW, monW], cooldownMap, si);
+        prod=pickWithCooldown([winW, potW, ujiW, monW], cooldownMap, si, dn, time);
         type='prime'; typeLabel=`PRIME (${currentSlotSource})`;
       } else if(MID_SLOTS.includes(time)){
-        prod=pickWithCooldown([potW, winW, ujiW, monW], cooldownMap, si);
+        prod=pickWithCooldown([potW, winW, ujiW, monW], cooldownMap, si, dn, time);
         type='pot'; typeLabel=`POTENSIAL (${currentSlotSource})`;
       } else {
-        prod=pickWithCooldown([ujiW, monW, potW, winW], cooldownMap, si);
+        prod=pickWithCooldown([ujiW, monW, potW, winW], cooldownMap, si, dn, time);
         type='test'; typeLabel=`TEST (${currentSlotSource})`;
       }
       return{time,prod,type,typeLabel,hIdx:Math.floor(Math.random()*Math.max(S.hooks.length,1)),pfIdx:Math.floor(Math.random()*Math.max(S.proofs.length,1)),ctaIdx:Math.floor(Math.random()*Math.max(S.ctas.length,1)),descIdx:0,sopen:false};

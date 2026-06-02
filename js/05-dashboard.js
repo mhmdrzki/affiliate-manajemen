@@ -2,6 +2,8 @@
 Tujuan: Modul Dashboard dan Formatter Utilitas
 Caller: 04-nav.js, 08-views.js (Init)
 Dependensi: S (dari 02-state), detectAnomalies (dari 03-scoring)
+Main Functions: fmt, renderDash
+Side Effects: DOM rendering
 */
 
 // ============================================================
@@ -43,7 +45,7 @@ function renderDash(){
     <td style="max-width:140px;font-size:10.5px">${(c.desc||'—').substring(0,36)}</td>
     <td style="max-width:130px;font-size:10.5px">${(c.produk||'—').substring(0,32)}</td>
     <td style="font-size:9.5px;color:var(--tx3);white-space:nowrap">${c.tanggal||'—'}</td>
-    <td style="font-family:var(--fm);font-size:9.5px;line-height:1.2"><div>${fmt(c.views||0)}</div>${c.viewsTotal?`<div style="font-size:8px;color:var(--tx3);margin-top:1px" title="Total Views (Lifetime)">🕒 ${fmt(c.viewsTotal)}</div>`:''}</td>
+    <td style="font-family:var(--fm);font-size:9.5px">${fmt(c.views||0)}</td>
     <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctr||0)>1?'var(--gr)':'var(--tx2)'}">${(c.ctr||0).toFixed(1)}%</td>
     <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctor||0)>0.5?'var(--ac2)':'var(--tx2)'}">${(c.ctor||0).toFixed(1)}%</td>
     <td style="font-family:var(--fm);font-size:9.5px;font-weight:600;color:${(c.itemsSold||0)>0?'var(--gr)':'var(--tx3)'}">${c.itemsSold||0}</td>
@@ -74,7 +76,7 @@ function renderDash(){
   });
 
   if(drop.length)als.push(`<div class="al al-d">⚠️ <strong>${drop.length} produk harus di-drop</strong>: ${drop.slice(0,3).map(p=>(p.jenis||p.nama).substring(0,20)).join(', ')}</div>`);
-  if(winning.length)als.push(`<div class="al al-s">✅ <strong>${winning.length} Winning</strong> → prime slot: ${winning.slice(0,3).map(p=>(p.jenis||p.nama).substring(0,20)).join(', ')}</div>`);
+  if(winning.length)als.push(`<div class="al al-s">✅ <strong>${winning.length} Winning</strong> → prime slot: ${winning.slice(0,3).map(p=>`${(p.jenis||p.nama).substring(0,20)} (CS ${((p.salesConsistency||0)*100).toFixed(0)}%, CE ${(p.conversionEfficiency||0).toFixed(1)})`).join(', ')}</div>`);
   if(highCTOR.length)als.push(`<div class="al al-s">🔥 <strong>${highCTOR.length} konten CTOR≥1.5%</strong> — kandidat re-upload segera</div>`);
   const noGmv=winning.filter(p=>!p.gmvAktif);
   if(noGmv.length)als.push(`<div class="al al-w">💡 <strong>${noGmv.length} winning belum GMV Max</strong> — cek seller</div>`);
