@@ -29,7 +29,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <div class="brand-logo">A</div>
     <div class="brand-text">
       <div class="brand-name">Affiliate<em>OS</em></div>
-      <div class="brand-sub">TikTok Shop</div>
+      <div class="brand-sub">TikTok Shop &middot; v2.0</div>
     </div>
   </div>
   <nav>
@@ -46,14 +46,6 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <div class="ni" onclick="goPage('bench',this)"><span class="ni-ic">◉</span>Benchmark<span class="nb" id="nb-b" style="background:var(--pub);color:var(--pu)">0</span></div>
     <div class="ni" onclick="goPage('guide',this)"><span class="ni-ic">?</span>Panduan</div>
   </nav>
-  <div class="sb-btm">
-    <div class="mode-lbl">Mode</div>
-    <div class="mode-tog">
-      <button class="mbtn act" id="mb-mine" onclick="setMode('mine')">Akunmu</button>
-      <button class="mbtn" id="mb-bench" onclick="setMode('bench')">Benchmark</button>
-    </div>
-  </div>
-  
   <div class="sb-btm" style="padding:8px 10px; border-top:1px solid var(--bd);">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
       <div class="mode-lbl" style="margin-bottom:0;">Gemini API Key</div>
@@ -113,7 +105,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
       <button class="btn btn-g btn-xs" style="margin-left:auto" onclick="goPage('import',document.querySelectorAll('.ni')[6])">+ Import</button>
     </div>
     <div class="tw" style="max-height:340px;overflow-y:auto">
-      <table><thead><tr><th>Deskripsi</th><th>Produk</th><th>Tgl</th><th>Views</th><th>CTR</th><th>CTOR</th><th>Sold</th><th>GMV</th><th>AOV</th><th>Link</th></tr></thead>
+      <table><thead><tr><th>Deskripsi</th><th>Kategori</th><th>Produk</th><th>Tgl</th><th>Views</th><th>CTR</th><th>CTOR</th><th>Sold</th><th>GMV</th></tr></thead>
       <tbody id="tbody-dash"></tbody></table>
     </div>
   </div>
@@ -185,6 +177,10 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="card-t">Tersedia <span class="ctb" id="avail-ct">0</span></div>
         <div id="avail-list" style="max-height:220px;overflow-y:auto"></div>
       </div>
+      <div class="card" style="margin-top:9px">
+        <div class="card-t">Riwayat Jadwal</div>
+        <div id="sched-history-list" style="max-height:260px;overflow-y:auto"></div>
+      </div>
     </div>
     <div id="sched-out"><div class="empty" style="padding:44px 14px"><div class="empty-ic">◷</div><div class="empty-t">Jadwal belum dibuat</div><div class="empty-s">Atur parameter lalu Generate.</div></div></div>
   </div>
@@ -207,10 +203,16 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="fg"><label class="fl">Teks Hook</label>
           <textarea class="fi" id="hk-txt" placeholder="ex: Gue iseng coba [PRODUK] ini — dan sekarang susah balik ke yang lama."></textarea>
         </div>
+        <div class="fg"><label class="fl">Kategori</label>
+          <select class="fi" id="hk-cat"></select>
+        </div>
         <button class="btn btn-p" onclick="addHook()">+ Simpan Hook</button>
       </div>
       <div>
-        <div class="card-t" style="margin-bottom:8px">Hook Bank <span class="ctb" id="hk-ct">0</span></div>
+        <div class="card-t" style="margin-bottom:8px; display:flex; align-items:center; gap:6px">
+          Hook Bank <span class="ctb" id="hk-ct">0</span>
+          <select class="fi" id="hk-filter" onchange="renderHookList()" style="width:auto; padding:2px 6px; font-size:10px; margin-left:auto"></select>
+        </div>
         <div id="hook-list"></div>
       </div>
     </div>
@@ -225,10 +227,16 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="fg"><label class="fl">Teks Proof</label>
           <textarea class="fi" id="pf-txt" placeholder="ex: Udah ribuan yang order, dan reviewnya konsisten bagus — bukan dari saya, tapi dari pembelinya."></textarea>
         </div>
+        <div class="fg"><label class="fl">Kategori</label>
+          <select class="fi" id="pf-cat"></select>
+        </div>
         <button class="btn btn-p" onclick="addProof()">+ Simpan Proof</button>
       </div>
       <div>
-        <div class="card-t" style="margin-bottom:8px">Proof Bank <span class="ctb" id="pf-ct">0</span></div>
+        <div class="card-t" style="margin-bottom:8px; display:flex; align-items:center; gap:6px">
+          Proof Bank <span class="ctb" id="pf-ct">0</span>
+          <select class="fi" id="pf-filter" onchange="renderProofList()" style="width:auto; padding:2px 6px; font-size:10px; margin-left:auto"></select>
+        </div>
         <div id="proof-list"></div>
       </div>
     </div>
@@ -242,10 +250,16 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="fg"><label class="fl">Teks CTA</label>
           <textarea class="fi" id="cta-txt" placeholder="ex: Link produknya ada di keranjang, tap kalau mau." style="min-height:50px"></textarea>
         </div>
+        <div class="fg"><label class="fl">Kategori</label>
+          <select class="fi" id="cta-cat"></select>
+        </div>
         <button class="btn btn-p" onclick="addCTA()">+ Simpan CTA</button>
       </div>
       <div>
-        <div class="card-t" style="margin-bottom:8px">CTA Bank <span class="ctb" id="cta-ct">0</span></div>
+        <div class="card-t" style="margin-bottom:8px; display:flex; align-items:center; gap:6px">
+          CTA Bank <span class="ctb" id="cta-ct">0</span>
+          <select class="fi" id="cta-filter" onchange="renderCTAList()" style="width:auto; padding:2px 6px; font-size:10px; margin-left:auto"></select>
+        </div>
         <div id="cta-list"></div>
       </div>
     </div>
@@ -301,7 +315,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
 <div class="page" id="page-import">
   <div class="al al-i gap">
     <strong>Format file:</strong> Excel / CSV dengan kolom:
-    <code style="font-size:9.5px;background:var(--bg4);padding:1px 5px;border-radius:3px;display:block;margin-top:3px">Deskripsi Video · Nama Produk · Tanggal Posting · Durasi · Periode Data · Attr. GMV · Attr. Items Sold · AOV · Views · CTR · CTOR · Link</code>
+    <code style="font-size:9.5px;background:var(--bg4);padding:1px 5px;border-radius:3px;display:block;margin-top:3px">deskripsi · nama_produk (WAJIB) · kategori_produk · tanggal_upload · durasi · periode_data · attr_gmv · attr_items_sold · views · ctr_percent · ctor_percent</code>
     <span style="font-size:10px;opacity:.8">Duplikat (produk + tanggal + durasi sama) otomatis di-merge. Format Periode Data: <strong>DD/MM/YYYY - DD/MM/YYYY</strong> (contoh: 24/05/2026 - 30/05/2026).</span>
   </div>
   <div class="g2 gap" style="align-items:start">
@@ -325,7 +339,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
       </div>
       <div class="fr2">
         <div class="fg"><label class="fl">Kategori</label>
-          <select class="fi" id="qp-cat"><option value="fashion">Fashion</option><option value="olahraga">Olahraga</option><option value="parfum">Parfum</option><option value="skincare">Skincare</option><option value="elektronik">Elektronik</option><option value="umum">Umum</option></select>
+          <select class="fi" id="qp-cat"></select>
         </div>
         <div class="fg"><label class="fl">Seller GMV Max</label>
           <select class="fi" id="qp-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>
@@ -340,6 +354,15 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
       <button class="btn btn-d btn-xs" style="margin-left:auto" onclick="clearAll()">🗑 Reset Data</button>
     </div>
     <div id="imp-hist"></div>
+  </div>
+  <div class="card gap" style="margin-top:12px">
+    <div class="card-t">Kelola Kategori Master</div>
+    <div class="al al-i gap-sm" style="font-size:10px">Kategori ini digunakan untuk mengelompokkan produk, template hook/proof/cta, dan penyesuaian penulisan script video.</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <input type="text" class="fi" id="new-cat-name" placeholder="Nama Kategori Baru..." style="font-size:11px;">
+      <button class="btn btn-p btn-sm" onclick="addNewCategory()">+ Tambah</button>
+    </div>
+    <div id="cat-list-wrap" style="display:flex;flex-wrap:wrap;gap:6px"></div>
   </div>
 </div>
 
@@ -476,7 +499,7 @@ Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
     </div>
     <div class="fr2">
       <div class="fg"><label class="fl">Kategori</label>
-        <select class="fi" id="add-cat"><option value="fashion">Fashion</option><option value="olahraga">Olahraga</option><option value="parfum">Parfum</option><option value="skincare">Skincare</option><option value="elektronik">Elektronik</option><option value="umum">Umum</option></select>
+        <select class="fi" id="add-cat"></select>
       </div>
       <div class="fg"><label class="fl">GMV Max Seller</label>
         <select class="fi" id="add-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>

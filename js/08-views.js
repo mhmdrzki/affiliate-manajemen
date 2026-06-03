@@ -1,44 +1,93 @@
 /*
-Tujuan: Modul Bank Teks, Script Generator (AI), Import Analytics (SheetJS/CSV) Multi-Views/Jam, Benchmark, dan Inisialisasi Aplikasi
+Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru), Benchmark, dan Inisialisasi Aplikasi
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
-Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns
 Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
 // ============================================================
 // HOOK · PROOF · CTA BANK
 // ============================================================
+// ============================================================
+// HOOK · PROOF · CTA BANK
+// ============================================================
 function renderBank(){
+  renderBankCatDropdowns();
   renderHookList();renderProofList();renderCTAList();
 }
+function renderBankCatDropdowns() {
+  const cats = ['Umum', ...(S.categories || [])];
+  ['hk-cat', 'pf-cat', 'cta-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  });
+  ['hk-filter', 'pf-filter', 'cta-filter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      const currentVal = el.value || 'Semua';
+      el.innerHTML = '<option value="Semua">Semua Kategori</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+      el.value = currentVal;
+    }
+  });
+}
 function renderHookList(){
-  document.getElementById('hk-ct').textContent=S.hooks.length;
-  document.getElementById('hook-list').innerHTML=S.hooks.map(h=>`
+  const filter = document.getElementById('hk-filter') ? document.getElementById('hk-filter').value : 'Semua';
+  const filtered = filter === 'Semua' ? S.hooks : S.hooks.filter(h => (h.kategori || 'Umum') === filter);
+  document.getElementById('hk-ct').textContent=filtered.length;
+  document.getElementById('hook-list').innerHTML=filtered.map(h=>`
     <div class="hk-item">
-      <div class="hk-txt">${h.txt}</div>
+      <div class="hk-txt">
+        ${h.txt}
+        <span class="badge bp" style="margin-left:4px; font-size:8px; opacity:0.8">${h.kategori || 'Umum'}</span>
+      </div>
       <button class="btn btn-g btn-xs" onclick="delHook('${h.id}')">✕</button>
     </div>`).join('');
 }
 function renderProofList(){
-  document.getElementById('pf-ct').textContent=S.proofs.length;
-  document.getElementById('proof-list').innerHTML=S.proofs.map(p=>`
+  const filter = document.getElementById('pf-filter') ? document.getElementById('pf-filter').value : 'Semua';
+  const filtered = filter === 'Semua' ? S.proofs : S.proofs.filter(p => (p.kategori || 'Umum') === filter);
+  document.getElementById('pf-ct').textContent=filtered.length;
+  document.getElementById('proof-list').innerHTML=filtered.map(p=>`
     <div class="hk-item">
-      <div class="hk-txt">${p.txt}</div>
+      <div class="hk-txt">
+        ${p.txt}
+        <span class="badge bp" style="margin-left:4px; font-size:8px; opacity:0.8">${p.kategori || 'Umum'}</span>
+      </div>
       <button class="btn btn-g btn-xs" onclick="delProof('${p.id}')">✕</button>
     </div>`).join('');
 }
 function renderCTAList(){
-  document.getElementById('cta-ct').textContent=S.ctas.length;
-  document.getElementById('cta-list').innerHTML=S.ctas.map(c=>`
+  const filter = document.getElementById('cta-filter') ? document.getElementById('cta-filter').value : 'Semua';
+  const filtered = filter === 'Semua' ? S.ctas : S.ctas.filter(c => (c.kategori || 'Umum') === filter);
+  document.getElementById('cta-ct').textContent=filtered.length;
+  document.getElementById('cta-list').innerHTML=filtered.map(c=>`
     <div class="hk-item">
-      <div class="hk-txt">${c.txt}</div>
+      <div class="hk-txt">
+        ${c.txt}
+        <span class="badge bp" style="margin-left:4px; font-size:8px; opacity:0.8">${c.kategori || 'Umum'}</span>
+      </div>
       <button class="btn btn-g btn-xs" onclick="delCTA('${c.id}')">✕</button>
     </div>`).join('');
 }
-function addHook(){const t=document.getElementById('hk-txt').value.trim();if(!t){toast('Kosong');return;}S.hooks.push({id:'h'+Date.now(),txt:t});save();renderHookList();document.getElementById('hk-txt').value='';toast('Hook disimpan');}
-function addProof(){const t=document.getElementById('pf-txt').value.trim();if(!t){toast('Kosong');return;}S.proofs.push({id:'p'+Date.now(),txt:t});save();renderProofList();document.getElementById('pf-txt').value='';toast('Proof disimpan');}
-function addCTA(){const t=document.getElementById('cta-txt').value.trim();if(!t){toast('Kosong');return;}S.ctas.push({id:'c'+Date.now(),txt:t});save();renderCTAList();document.getElementById('cta-txt').value='';toast('CTA disimpan');}
+function addHook(){
+  const t=document.getElementById('hk-txt').value.trim();if(!t){toast('Kosong');return;}
+  const cat=document.getElementById('hk-cat').value;
+  S.hooks.push({id:'h'+Date.now(),txt:t,kategori:cat});
+  save();renderHookList();document.getElementById('hk-txt').value='';toast('Hook disimpan');
+}
+function addProof(){
+  const t=document.getElementById('pf-txt').value.trim();if(!t){toast('Kosong');return;}
+  const cat=document.getElementById('pf-cat').value;
+  S.proofs.push({id:'p'+Date.now(),txt:t,kategori:cat});
+  save();renderProofList();document.getElementById('pf-txt').value='';toast('Proof disimpan');
+}
+function addCTA(){
+  const t=document.getElementById('cta-txt').value.trim();if(!t){toast('Kosong');return;}
+  const cat=document.getElementById('cta-cat').value;
+  S.ctas.push({id:'c'+Date.now(),txt:t,kategori:cat});
+  save();renderCTAList();document.getElementById('cta-txt').value='';toast('CTA disimpan');
+}
 function delHook(id){S.hooks=S.hooks.filter(h=>h.id!==id);save();renderHookList();}
 function delProof(id){S.proofs=S.proofs.filter(p=>p.id!==id);save();renderProofList();}
 function delCTA(id){S.ctas=S.ctas.filter(c=>c.id!==id);save();renderCTAList();}
@@ -223,12 +272,8 @@ function importRows(rows,filename){
     const sold=pv(fk(row,'attr_items_sold','attr. items sold','items sold','itemssold','terjual','sold'));
     const ctr=pv(fk(row,'ctr_percent','ctr'));
     const ctor=pv(fk(row,'ctor_percent','ctor'));
-    const aov=pv(fk(row,'aov'));
     const views=pv(fk(row,'views'));
-    const viewsTotal=pv(fk(row,'total views','views_total','viewstotal'));
-    const link=String(fk(row,'link video','link','url')||'').trim();
     const tanggal=String(fk(row,'tanggal upload','tanggal posting','tanggal','date')||'').trim();
-    const jamUpload=String(fk(row,'jam upload','jam','time')||'').trim();
     const durasi=String(fk(row,'durasi','duration')||'').trim();
     const periode=String(fk(row,'periode data','periode')||'').trim();
 
@@ -241,8 +286,6 @@ function importRows(rows,filename){
       S.contents[dupIdx].ctr=Math.max(S.contents[dupIdx].ctr||0,ctr);
       S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
       S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
-      S.contents[dupIdx].viewsTotal=Math.max(S.contents[dupIdx].viewsTotal||0,viewsTotal);
-      S.contents[dupIdx].jamUpload=jamUpload || S.contents[dupIdx].jamUpload || '';
       if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
         S.contents[dupIdx].periode=periode;
         S.contents[dupIdx].periodeStart=pStart;
@@ -254,23 +297,12 @@ function importRows(rows,filename){
     // Find or create product
     let prod=S.products.find(p=>produk.toLowerCase()===p.nama.toLowerCase());
     if(!prod){
-      const pn=produk.toLowerCase();
-      let cat='umum',jenis='Produk';
-      if(/celana|jogger|chinos|jeans|corduroy/.test(pn)){cat='fashion';jenis='Celana';}
-      else if(/kaos|tee|t-shirt/.test(pn)){cat='fashion';jenis='Kaos';}
-      else if(/jaket|hoodie|sweater|jumper/.test(pn)){cat='fashion';jenis='Jaket';}
-      else if(/sepatu|sandal|slipper/.test(pn)){cat='fashion';jenis='Sepatu';}
-      else if(/tas|backpack|dompet/.test(pn)){cat='fashion';jenis='Tas';}
-      else if(/parfum|cologne|edp|edt|fragrance/.test(pn)){cat='parfum';jenis='Parfum';}
-      else if(/serum|moisturizer|sunscreen|toner|essence|sabun muka/.test(pn)){cat='skincare';jenis='Skincare';}
-      else if(/creatine|protein|suplemen|vitamin/.test(pn)){cat='olahraga';jenis='Suplemen';}
-      else if(/kalung|gelang|cincin|aksesoris/.test(pn)){cat='fashion';jenis='Aksesoris';}
-      else if(/baju|dress|rok|kemeja|polo/.test(pn)){cat='fashion';jenis='Baju';}
-      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis,harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
+      const cat=String(fk(row,'kategori_produk','kategoriproduk','kategori','category')||'').trim();
+      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis:'',harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
-    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,jamUpload,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,aov,views,viewsTotal,link,estK,ts:Date.now()});
+    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,views,estK,ts:Date.now()});
     added++;
   });
   S.importHistory.push({filename,added,merged,skipped,ts:new Date().toLocaleString('id'),total:S.contents.length});
@@ -542,6 +574,8 @@ renderDash();
 document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
 gdUpdateUI();
 initGeminiKey();
+if (typeof renderCatManager === 'function') renderCatManager();
+if (typeof renderCatOptions === 'function') renderCatOptions('qp-cat', 'Umum');
 
 // Cek ketersediaan library CDN kritis
 if (typeof XLSX === 'undefined') {

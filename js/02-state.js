@@ -14,10 +14,12 @@ DATABASE DATA SCHEMA (State Global 'S')
 S = {
   products: [],          // Array objek produk master (prod)
   contents: [],          // Array objek riwayat video analitik (content)
-  hooks: [{id, txt}],    // Array Hook template bank
-  proofs: [{id, txt}],   // Array Proof template bank
-  ctas: [{id, txt}],     // Array CTA template bank
+  categories: [],        // Array master kategori dinamis (String)
+  hooks: [{id, txt, kategori}],   // Array Hook template bank
+  proofs: [{id, txt, kategori}],  // Array Proof template bank
+  ctas: [{id, txt, kategori}],    // Array CTA template bank
   importHistory: [],     // Array log impor ({filename, added, merged, skipped, ts, total})
+  scheduleHistory: [],   // Array riwayat jadwal generated
   scoringMode: String,   // Mode kalkulasi skor aktif ('benchmark' | 'topsis')
   lastModified: Number   // Timestamp milidetik modifikasi terakhir database
 }
@@ -29,7 +31,7 @@ prod = {
   jenis: String,           // Tipe pendek produk (ex: "Celana Jogger")
   harga: Number,           // Harga produk dalam Rupiah
   komisi: Number,          // Komisi afiliasi per unit terjual
-  kategori: String,        // Kategori ('fashion'|'parfum'|'skincare'|'olahraga'|'elektronik'|'umum')
+  kategori: String,        // Kategori (bebas / dinamis)
   labelPrestasi: String,   // Label seller dari TikTok (ex: "Top selling #4" atau "-")
   gmvAktif: Boolean,       // Status keaktifan seller beriklan/GMV Max
   descVariants: [],        // Array maks 3 string deskripsi isi konten buatan AI
@@ -39,6 +41,7 @@ prod = {
   avgViews: Number,        // Rata-rata views video
   totalItemsSold: Number,  // Total unit terjual
   totalGMV: Number,        // Total GMV dalam Rupiah
+  conversionRate: Number,  // Rasio sold/views (%)
   avgCTR: Number,          // Rata-rata CTR berbobot eksponensial (EMA .7 / .3)
   avgCTOR: Number,         // Rata-rata CTOR berbobot eksponensial (EMA .7 / .3)
   uploadDates: [],         // Kumpulan tanggal upload unik
@@ -63,9 +66,7 @@ content = {
   itemsSold: Number,   // Unit produk terjual dari video ini
   ctr: Number,         // Click-Through Rate (%)
   ctor: Number,        // Click-to-Order Rate (%)
-  aov: Number,         // Rata-rata nilai per transaksi (AOV)
   views: Number,       // Jumlah penayangan video
-  link: String,        // URL tautan video TikTok
   estK: Number,        // Estimasi komisi (itemsSold * prod.komisi)
   ts: Number           // Timestamp internal pembuatan objek
 }
@@ -81,39 +82,52 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 // DATA DEFAULTS
 // ============================================================
 const DEF_HOOKS=[
-  {id:'h1',txt:'Gue iseng coba [PRODUK] ini — dan sekarang susah balik ke yang lama.'},
-  {id:'h2',txt:'Jujur, gue awalnya ragu. Tapi setelah pakai [PRODUK] ini, pendapat gue berubah.'},
-  {id:'h3',txt:'Kalau lo lagi cari [PRODUK] yang worth it, mungkin ini yang lo cari.'},
-  {id:'h4',txt:'Ribuan orang udah order ini. Gue penasaran, gue coba — ini hasilnya.'},
-  {id:'h5',txt:'Gue nemu [PRODUK] ini dan langsung ngerti kenapa banyak yang repeat order.'},
-  {id:'h6',txt:'[PRODUK] ini yang sekarang gue pakai sehari-hari. Dan gue punya alasannya.'},
-  {id:'h7',txt:'Ini [PRODUK] yang sering orang tanya ke gue — akhirnya gue bahas juga.'},
-  {id:'h8',txt:'Sebelum lo beli [PRODUK] sembarangan, tonton ini dulu.'},
-  {id:'h9',txt:'Gue nggak nyangka [PRODUK] harga segini bisa sekualitas ini.'},
-  {id:'h10',txt:'Kalau lo sering nunda beli [PRODUK] karena banyak pilihan — coba yang ini dulu.'},
+  {id:'h1',txt:'Gue iseng coba [PRODUK] ini — dan sekarang susah balik ke yang lama.',kategori:'Umum'},
+  {id:'h2',txt:'Jujur, gue awalnya ragu. Tapi setelah pakai [PRODUK] ini, pendapat gue berubah.',kategori:'Umum'},
+  {id:'h3',txt:'Kalau lo lagi cari [PRODUK] yang worth it, mungkin ini yang lo cari.',kategori:'Umum'},
+  {id:'h4',txt:'Ribuan orang udah order ini. Gue penasaran, gue coba — ini hasilnya.',kategori:'Umum'},
+  {id:'h5',txt:'Gue nemu [PRODUK] ini dan langsung ngerti kenapa banyak yang repeat order.',kategori:'Umum'},
+  {id:'h6',txt:'[PRODUK] ini yang sekarang gue pakai sehari-hari. Dan gue punya alasannya.',kategori:'Umum'},
+  {id:'h7',txt:'Ini [PRODUK] yang sering orang tanya ke gue — akhirnya gue bahas juga.',kategori:'Umum'},
+  {id:'h8',txt:'Sebelum lo beli [PRODUK] sembarangan, tonton ini dulu.',kategori:'Umum'},
+  {id:'h9',txt:'Gue nggak nyangka [PRODUK] harga segini bisa sekualitas ini.',kategori:'Umum'},
+  {id:'h10',txt:'Kalau lo sering nunda beli [PRODUK] karena banyak pilihan — coba yang ini dulu.',kategori:'Umum'},
 ];
 const DEF_PROOFS=[
-  {id:'p1',txt:'Udah ribuan yang order, dan reviewnya konsisten — bukan dari gue, tapi dari yang udah beli.'},
-  {id:'p2',txt:'Rating-nya tinggi karena memang worth it, bukan karena kebetulan.'},
-  {id:'p3',txt:'Gue bukan satu-satunya yang rekomendasiin ini — cek sendiri jumlah pembelinya.'},
-  {id:'p4',txt:'Yang repeat order biasanya nggak bohong soal kualitas.'},
-  {id:'p5',txt:'Reviewnya konsisten dari berbagai pembeli — itu yang bikin gue yakin rekomendasiin ini.'},
-  {id:'p6',txt:'Bukan karena viral, tapi karena emang bagus. Makanya terus laku.'},
-  {id:'p7',txt:'Sudah terbukti dari review pembeli — kualitasnya sesuai harganya.'},
+  {id:'p1',txt:'Udah ribuan yang order, dan reviewnya konsisten — bukan dari gue, tapi dari yang udah beli.',kategori:'Umum'},
+  {id:'p2',txt:'Rating-nya tinggi karena memang worth it, bukan karena kebetulan.',kategori:'Umum'},
+  {id:'p3',txt:'Gue bukan satu-satunya yang rekomendasiin ini — cek sendiri jumlah pembelinya.',kategori:'Umum'},
+  {id:'p4',txt:'Yang repeat order biasanya nggak bohong soal kualitas.',kategori:'Umum'},
+  {id:'p5',txt:'Reviewnya konsisten dari berbagai pembeli — itu yang bikin gue yakin rekomendasiin ini.',kategori:'Umum'},
+  {id:'p6',txt:'Bukan karena viral, tapi karena emang bagus. Makanya terus laku.',kategori:'Umum'},
+  {id:'p7',txt:'Sudah terbukti dari review pembeli — kualitasnya sesuai harganya.',kategori:'Umum'},
 ];
 const DEF_CTAS=[
-  {id:'c1',txt:'Link produknya ada di keranjang, tap kalau mau.'},
-  {id:'c2',txt:'Tap keranjang kuning di bawah kalau tertarik.'},
-  {id:'c3',txt:'Kalau mau coba, keranjangnya ada di bawah.'},
-  {id:'c4',txt:'Cek dulu di keranjang — siapa tahu cocok buat lo.'},
-  {id:'c5',txt:'Ada di keranjang, tap aja.'},
-  {id:'c6',txt:'Link ada di keranjang, bebas dicek dulu.'},
+  {id:'c1',txt:'Link produknya ada di keranjang, tap kalau mau.',kategori:'Umum'},
+  {id:'c2',txt:'Tap keranjang kuning di bawah kalau tertarik.',kategori:'Umum'},
+  {id:'c3',txt:'Kalau mau coba, keranjangnya ada di bawah.',kategori:'Umum'},
+  {id:'c4',txt:'Cek dulu di keranjang — siapa tahu cocok buat lo.',kategori:'Umum'},
+  {id:'c5',txt:'Ada di keranjang, tap aja.',kategori:'Umum'},
+  {id:'c6',txt:'Link ada di keranjang, bebas dicek dulu.',kategori:'Umum'},
 ];
 
 // ============================================================
 // STATE
 // ============================================================
-const INIT_S={products:[],contents:[],benchmarks:[],hooks:[...DEF_HOOKS],proofs:[...DEF_PROOFS],ctas:[...DEF_CTAS],importHistory:[],scoringMode:'benchmark',lastModified:0,benchmarkActiveProfile:'bangjie.id (bawaan)'};
+const INIT_S={
+  products:[],
+  contents:[],
+  benchmarks:[],
+  categories:['Fashion', 'Parfum', 'Skincare', 'Olahraga', 'Elektronik', 'Makanan & Minuman', 'Rumah Tangga', 'Umum'],
+  hooks:[...DEF_HOOKS],
+  proofs:[...DEF_PROOFS],
+  ctas:[...DEF_CTAS],
+  importHistory:[],
+  scheduleHistory:[],
+  scoringMode:'benchmark',
+  lastModified:0,
+  benchmarkActiveProfile:'bangjie.id (bawaan)'
+};
 let S=JSON.parse(JSON.stringify(INIT_S));
 try{
   const sv=localStorage.getItem('affos4');
@@ -121,6 +135,11 @@ try{
     const parsed=JSON.parse(sv);
     S={...INIT_S,...parsed};
     if(!S.proofs||!S.proofs.length)S.proofs=[...DEF_PROOFS];
+    // Migrasi hook/proof/cta agar punya property kategori jika belum ada
+    if(S.hooks) S.hooks.forEach(h => { if(!h.kategori) h.kategori = 'Umum'; });
+    if(S.proofs) S.proofs.forEach(p => { if(!p.kategori) p.kategori = 'Umum'; });
+    if(S.ctas) S.ctas.forEach(c => { if(!c.kategori) c.kategori = 'Umum'; });
+    
     // Migrasi benchmark lama
     if(S.benchmarks&&S.benchmarks.length){
       let m=false;
@@ -128,6 +147,8 @@ try{
       if(m)localStorage.setItem('affos4',JSON.stringify(S));
     }
     if(!S.benchmarkActiveProfile)S.benchmarkActiveProfile='bangjie.id (bawaan)';
+    if(!S.categories||!S.categories.length)S.categories=['Fashion', 'Parfum', 'Skincare', 'Olahraga', 'Elektronik', 'Makanan & Minuman', 'Rumah Tangga', 'Umum'];
+    if(!S.scheduleHistory)S.scheduleHistory=[];
   }
 }catch(e){}
 function save(){S.lastModified=Date.now();try{localStorage.setItem('affos4',JSON.stringify(S));}catch(e){} gdScheduleSync(); }

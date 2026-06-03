@@ -1,5 +1,5 @@
 /*
-Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) + AI-Emulator Metrik (CS/CE/Afinitas), Anomali Deteksi, dan Update Badge
+Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) volume-first + AI-Emulator Metrik (CS/CE/CR/Afinitas), Anomali Deteksi, dan Update Badge
 Caller: 04-nav.js, 05-dashboard.js, 06-produk.js, 08-views.js
 Dependensi: S, save (dari 02-state)
 Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies
@@ -70,7 +70,14 @@ let currentSlotSource='Bawaan';
 
 // ── WEIGHTS ──────────────────────────────────────────────────
 const W_BENCH={nVideo:.50,spreadDays:.25,hasPrestasi:.15,maxViews:.10};
-const W_TOPSIS={avgCTOR:.35,avgCTR:.25,totalItemsSold:.20,totalGMV:.12,nVideo:.08};
+const W_TOPSIS={
+  avgCTOR:       .30,  // Tetap prioritas — rasio klik-ke-order
+  totalItemsSold:.25,  // NAIK — konversi riil, indikator paling jujur
+  avgCTR:        .20,  // Tetap penting — engagement
+  totalGMV:      .10,  // TURUN — masih relevan tapi bukan penentu utama
+  nVideo:        .10,  // NAIK — konsistensi push = komitmen affiliator
+  conversionRate:.05   // BARU — sold/views, efisiensi konversi per trafik
+};
 
 // ── BENCHMARK SCORING (normalized SAW) ───────────────────────
 function scoreBenchmark(ps){
@@ -99,7 +106,8 @@ function scoreTOPSIS(ps){
     avgCTR: p.avgCTR||0,
     totalItemsSold: Math.log1p(p.totalItemsSold||0),
     totalGMV: Math.log1p((p.totalGMV||0)/10000),
-    nVideo: Math.log1p(p.nVideo||0)
+    nVideo: Math.log1p(p.nVideo||0),
+    conversionRate: p.conversionRate||0
   }));
   const colNorm={};
   keys.forEach(k=>{colNorm[k]=Math.sqrt(raw.reduce((s,r)=>s+r[k]**2,0))||1;});
@@ -122,12 +130,12 @@ function classifyP(p,mode){
   const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
   const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
   if(mode==='topsis'){
-    const sc = p.salesConsistency||0, ce = p.conversionEfficiency||0, ts = p.topsisScore||0;
+    const sc = p.salesConsistency||0, ts = p.topsisScore||0, conversionRate = p.conversionRate||0;
     // WINNING (4 Jalur AI-Emulator)
-    if(sold>=4||gmv>=500000)return 'WINNING'; // 1. Skala Volume
-    if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 2. Konsistensi (Rutin)
-    if(ce>=5.0&&sold>=2&&p.avgViews>200)return 'WINNING'; // 3. Efisiensi Konversi Trafik
-    if(ts>=0.60)return 'WINNING'; // 4. Potensi Viral
+    if(sold>=4)return 'WINNING'; // 1. Skala Volume
+    if(sold>=2 && conversionRate>=0.5)return 'WINNING'; // 2. Efisiensi Konversi
+    if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 3. Konsistensi (Rutin)
+    if(ts>=0.60)return 'WINNING'; // 4. TOPSIS Score Tinggi
     
     // DROP
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
@@ -140,7 +148,7 @@ function classifyP(p,mode){
     return 'MONITOR';
   }
   // benchmark (frequency-based)
-  if(n>=5||(n>=3&&(sold>0||gmv>0)))return 'WINNING';
+  if(n>=5||(n>=3&&sold>0))return 'WINNING';
   if(n>=3&&mv<2000&&ctr===0&&sold===0)return 'DROP';
   if(n>=3||(n>=2&&ctr>0))return 'POTENTIAL';
   return 'MONITOR';
@@ -192,6 +200,7 @@ function recomputeProductStats() {
     p.salesVideos = 0;              // Jumlah video yang menghasilkan >= 1 sale
     p.salesConsistency = 0;         // Rasio (salesVideos / nVideo)
     p.conversionEfficiency = 0;     // Sales per 10k views
+    p.conversionRate = 0;           // Rasio sold/views (%)
     p.bestDays = [];                // Hari terbaik [Senin, dll]
     p.bestHours = [];               // Jam terbaik [08:00, dll]
   });
@@ -224,7 +233,7 @@ function recomputeProductStats() {
       const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
 
       prod.nVideo++;
-      prod.maxViews = Math.max(prod.maxViews, c.viewsTotal || c.views || 0);
+      prod.maxViews = Math.max(prod.maxViews, c.views || 0);
       totalViewsRaw += (c.views || 0);
 
       if (c.tanggal && !prod.uploadDates.includes(c.tanggal)) prod.uploadDates.push(c.tanggal);
@@ -267,6 +276,7 @@ function recomputeProductStats() {
     // Kalkulasi Metrik AI-Emulator
     prod.salesConsistency = prod.nVideo > 0 ? (prod.salesVideos / prod.nVideo) : 0;
     prod.conversionEfficiency = totalViewsRaw > 0 ? (prod.totalItemsSold / totalViewsRaw) * 10000 : 0;
+    prod.conversionRate = totalViewsRaw > 0 ? (prod.totalItemsSold / totalViewsRaw) * 100 : 0;
 
     // Pemilihan Afinitas (Prioritas: Sales terbesar, lalu fallback ke Views)
     prod.bestDays = Object.entries(dayAff)

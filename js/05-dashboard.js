@@ -39,20 +39,26 @@ function renderDash(){
     views:(a,b)=>(b.views||0)-(a.views||0),
     date:(a,b)=>b.ts-a.ts
   };
+  const pMap = {};
+  S.products.forEach(p => { pMap[p.nama.toLowerCase()] = p; });
+
   const sorted=[...cs].sort(sf[srt]||sf.gmv);
   
-  document.getElementById('tbody-dash').innerHTML=sorted.length?sorted.map(c=>`<tr>
-    <td style="max-width:140px;font-size:10.5px">${(c.desc||'—').substring(0,36)}</td>
-    <td style="max-width:130px;font-size:10.5px">${(c.produk||'—').substring(0,32)}</td>
-    <td style="font-size:9.5px;color:var(--tx3);white-space:nowrap">${c.tanggal||'—'}</td>
-    <td style="font-family:var(--fm);font-size:9.5px">${fmt(c.views||0)}</td>
-    <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctr||0)>1?'var(--gr)':'var(--tx2)'}">${(c.ctr||0).toFixed(1)}%</td>
-    <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctor||0)>0.5?'var(--ac2)':'var(--tx2)'}">${(c.ctor||0).toFixed(1)}%</td>
-    <td style="font-family:var(--fm);font-size:9.5px;font-weight:600;color:${(c.itemsSold||0)>0?'var(--gr)':'var(--tx3)'}">${c.itemsSold||0}</td>
-    <td style="font-family:var(--fm);font-size:9.5px;color:${(c.gmv||0)>0?'var(--pu)':'var(--tx3)'}">${c.gmv>0?'Rp'+fmt(c.gmv):'Rp0'}</td>
-    <td style="font-family:var(--fm);font-size:9.5px">${c.aov>0?'Rp'+fmt(c.aov):'—'}</td>
-    <td>${c.link&&c.link.startsWith('http')?`<a href="${c.link}" target="_blank" class="tlink">↗</a>`:'—'}</td>
-  </tr>`).join(''):`<tr><td colspan="10"><div class="empty"><div class="empty-t">Belum ada data</div></div></td></tr>`;
+  document.getElementById('tbody-dash').innerHTML=sorted.length?sorted.map(c=>{
+    const p = pMap[c.produk.toLowerCase()];
+    const kategori = p ? (p.kategori || '—') : '—';
+    return `<tr>
+      <td style="max-width:140px;font-size:10.5px">${(c.desc||'—').substring(0,36)}</td>
+      <td style="max-width:100px;font-size:10.5px">${kategori}</td>
+      <td style="max-width:130px;font-size:10.5px">${(c.produk||'—').substring(0,32)}</td>
+      <td style="font-size:9.5px;color:var(--tx3);white-space:nowrap">${c.tanggal||'—'}</td>
+      <td style="font-family:var(--fm);font-size:9.5px">${fmt(c.views||0)}</td>
+      <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctr||0)>1?'var(--gr)':'var(--tx2)'}">${(c.ctr||0).toFixed(1)}%</td>
+      <td style="font-family:var(--fm);font-size:9.5px;color:${(c.ctor||0)>0.5?'var(--ac2)':'var(--tx2)'}">${(c.ctor||0).toFixed(1)}%</td>
+      <td style="font-family:var(--fm);font-size:9.5px;font-weight:600;color:${(c.itemsSold||0)>0?'var(--gr)':'var(--tx3)'}">${c.itemsSold||0}</td>
+      <td style="font-family:var(--fm);font-size:9.5px;color:${(c.gmv||0)>0?'var(--pu)':'var(--tx3)'}">${c.gmv>0?'Rp'+fmt(c.gmv):'Rp0'}</td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="9"><div class="empty"><div class="empty-t">Belum ada data</div></div></td></tr>`;
 
   refreshScores();
   

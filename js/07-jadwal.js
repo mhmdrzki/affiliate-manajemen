@@ -1,9 +1,9 @@
 /*
-Tujuan: Modul Jadwal Konten (Render, Affinity-Based Generator, Pengacak Hook/Proof/CTA)
+Tujuan: Modul Jadwal Konten (Render, Affinity-Based Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT)
 Caller: 04-nav.js, 08-views.js (Init), UI Events
 Dependensi: S (02-state); PATS, PRIME_SLOTS, MID_SLOTS, bH (03-scoring); fmt (05-dashboard); openModal, closeModal (04-nav); toast (02-state)
-Main Functions: genSched, pickWithCooldown, buildSlotScript, renderSchedOutput
-Side Effects: LocalStorage write (via save())
+Main Functions: genSched, pickWithCooldown, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory
+Side Effects: LocalStorage write (via save()), File Download I/O
 */
 
 // ============================================================
@@ -22,17 +22,44 @@ function renderSchedAvail(){
       </div>
     </div>`).join(''):`<div class="empty" style="padding:14px"><div class="empty-t">Belum ada produk</div></div>`;
   document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
+  renderSchedHistory();
 }
 
-function getRandHook(){return S.hooks[Math.floor(Math.random()*Math.max(S.hooks.length,1))]?.txt||DEF_HOOKS[0].txt;}
-function getRandProof(){return S.proofs[Math.floor(Math.random()*Math.max(S.proofs.length,1))]?.txt||DEF_PROOFS[0].txt;}
-function getRandCTA(){return S.ctas[Math.floor(Math.random()*Math.max(S.ctas.length,1))]?.txt||DEF_CTAS[0].txt;}
+function getFilteredPool(pool, kategori) {
+  const cat = (kategori || 'Umum').toLowerCase();
+  let filtered = pool.filter(item => {
+    const c = (item.kategori || 'Umum').toLowerCase();
+    return c === cat || c === 'umum' || c === '';
+  });
+  if (!filtered.length) filtered = pool;
+  return filtered;
+}
+function getFilteredHooks(kategori) { return getFilteredPool(S.hooks, kategori); }
+function getFilteredProofs(kategori) { return getFilteredPool(S.proofs, kategori); }
+function getFilteredCTAs(kategori) { return getFilteredPool(S.ctas, kategori); }
+
+function getRandHook(kategori){
+  const pool = getFilteredHooks(kategori);
+  return pool[Math.floor(Math.random()*pool.length)]?.txt || DEF_HOOKS[0].txt;
+}
+function getRandProof(kategori){
+  const pool = getFilteredProofs(kategori);
+  return pool[Math.floor(Math.random()*pool.length)]?.txt || DEF_PROOFS[0].txt;
+}
+function getRandCTA(kategori){
+  const pool = getFilteredCTAs(kategori);
+  return pool[Math.floor(Math.random()*pool.length)]?.txt || DEF_CTAS[0].txt;
+}
 
 function buildSlotScript(prod,hIdx,pfIdx,ctaIdx,descIdx){
   if(!prod) return '<span class="sn">Pilih produk untuk script.</span>';
-  const hook=S.hooks[hIdx]?.txt.replace('[PRODUK]',(prod.jenis||prod.nama.split(' ').slice(0,3).join(' ')))||getRandHook();
-  const proof=S.proofs[pfIdx]?.txt||getRandProof();
-  const cta=S.ctas[ctaIdx]?.txt||getRandCTA();
+  const cat = prod.kategori || 'Umum';
+  const fHooks = getFilteredHooks(cat);
+  const fProofs = getFilteredProofs(cat);
+  const fCTAs = getFilteredCTAs(cat);
+  const hook=(fHooks[hIdx] || fHooks[0])?.txt.replace('[PRODUK]',(prod.jenis||prod.nama.split(' ').slice(0,3).join(' ')))||getRandHook(cat);
+  const proof=(fProofs[pfIdx] || fProofs[0])?.txt||getRandProof(cat);
+  const cta=(fCTAs[ctaIdx] || fCTAs[0])?.txt||getRandCTA(cat);
   const desc=(prod.descVariants||[])[descIdx]||`[Belum ada isi konten. Buka Master Produk → ${prod.jenis||'produk ini'} → Generate Isi Konten]`;
   return `<span class="sh">[HOOK]</span>\n${hook}\n\n<span class="sh">[ISI]</span>\n${desc}\n\n<span class="sh">[PROOF]</span>\n${proof}\n\n<span class="sh">[CTA]</span>\n${cta}`;
 }
@@ -88,15 +115,14 @@ function genSched(){
     for (const poolW of chains) {
       if (!poolW.length) continue;
       
-      // Hitung bobot kustom khusus untuk slot Hari/Jam INI (Affinity Boost)
       const dynPool = poolW.map(item => {
         const p = item.p;
         let affinityBonus = 1.0;
         if (p.bestDays && p.bestDays.includes(dName)) {
-          affinityBonus += 0.4;  // +40% bobot kecocokan hari
+          affinityBonus += 0.4;
         }
         if (p.bestHours && p.bestHours.includes(hStr)) {
-          affinityBonus += 0.6;  // +60% bobot kecocokan jam
+          affinityBonus += 0.6;
         }
         return { p, weight: item.weight * affinityBonus };
       });
@@ -157,7 +183,13 @@ function genSched(){
         prod=pickWithCooldown([ujiW, monW, potW, winW], cooldownMap, si, dn, time);
         type='test'; typeLabel=`TEST (${currentSlotSource})`;
       }
-      return{time,prod,type,typeLabel,hIdx:Math.floor(Math.random()*Math.max(S.hooks.length,1)),pfIdx:Math.floor(Math.random()*Math.max(S.proofs.length,1)),ctaIdx:Math.floor(Math.random()*Math.max(S.ctas.length,1)),descIdx:0,sopen:false};
+      
+      const cat = prod ? (prod.kategori || 'Umum') : 'Umum';
+      const fHooksLen = getFilteredHooks(cat).length || 1;
+      const fProofsLen = getFilteredProofs(cat).length || 1;
+      const fCTAsLen = getFilteredCTAs(cat).length || 1;
+
+      return{time,prod,type,typeLabel,hIdx:Math.floor(Math.random()*fHooksLen),pfIdx:Math.floor(Math.random()*fProofsLen),ctaIdx:Math.floor(Math.random()*fCTAsLen),descIdx:0,sopen:false};
     });
     
     let volDiff = daySlotsTimes.length - slots.length;
@@ -165,7 +197,39 @@ function genSched(){
 
     schedData.push({dt,dn,slots:daySlots,open:true,volLabel,multiplier});
   }
+  
+  // Save to history
+  const entry = {
+    id: 'sh' + Date.now(),
+    label: `Jadwal ${range} hari — ` + new Date(start).toLocaleDateString('id', {day:'numeric', month:'short', year:'numeric'}),
+    createdAt: new Date().toLocaleString('id'),
+    range: range,
+    slotPerDay: slots.length,
+    totalSlots: schedData.reduce((acc, day) => acc + day.slots.length, 0),
+    data: JSON.parse(JSON.stringify(schedData.map(day => ({
+      dt: day.dt,
+      dn: day.dn,
+      volLabel: day.volLabel,
+      multiplier: day.multiplier,
+      slots: day.slots.map(s => ({
+        time: s.time,
+        type: s.type,
+        typeLabel: s.typeLabel,
+        hIdx: s.hIdx,
+        pfIdx: s.pfIdx,
+        ctaIdx: s.ctaIdx,
+        descIdx: s.descIdx,
+        prodId: s.prod ? s.prod.id : null
+      }))
+    }))))
+  };
+  if (!S.scheduleHistory) S.scheduleHistory = [];
+  S.scheduleHistory.unshift(entry);
+  if (S.scheduleHistory.length > 20) S.scheduleHistory.pop();
+
+  save();
   renderSchedOutput();
+  renderSchedHistory();
   toast('Jadwal '+range+' hari dibuat!');
 }
 
@@ -183,7 +247,12 @@ function renderSchedOutput(){
         </div>
       </div>
       <div class="sday-body">
-        ${day.slots.map((sl,si)=>`
+        ${day.slots.map((sl,si)=>{
+          const cat = sl.prod ? (sl.prod.kategori || 'Umum') : 'Umum';
+          const fHooks = getFilteredHooks(cat);
+          const fProofs = getFilteredProofs(cat);
+          const fCTAs = getFilteredCTAs(cat);
+          return `
           <div class="srow ${sl.sopen?'sopen':''}" id="sr-${di}-${si}">
             <div class="srow-time">
               <div class="srow-tv">${sl.time}</div>
@@ -192,7 +261,7 @@ function renderSchedOutput(){
             <div class="srow-prod">
               ${sl.prod
                 ?`<div class="spn">${sl.prod.nama.substring(0,55)}</div>
-                   <div class="sps">${sl.prod.jenis||'—'} · Score: ${sl.prod.score} · ${(sl.prod.descVariants||[]).length} isi konten</div>`
+                   <div class="sps">${sl.prod.jenis||'—'} · Score: ${sl.prod.benchScore} · ${(sl.prod.descVariants||[]).length} isi konten</div>`
                 :`<div class="spn" style="color:var(--tx3)">— Slot kosong —</div><div class="sps">Klik Ganti untuk assign</div>`}
             </div>
             <div class="srow-acts">
@@ -204,15 +273,15 @@ function renderSchedOutput(){
             <div class="screxp-hdr">
               <span style="font-size:9px;color:var(--tx3);font-family:var(--fm)">Hook:</span>
               <select class="mini-sel" onchange="updSlot(${di},${si},'hIdx',+this.value)">
-                ${S.hooks.map((h,hi)=>`<option value="${hi}" ${hi===sl.hIdx?'selected':''}>${h.txt.substring(0,40)}...</option>`).join('')}
+                ${fHooks.map((h,hi)=>`<option value="${hi}" ${hi===sl.hIdx?'selected':''}>${h.txt.substring(0,40)}...</option>`).join('')}
               </select>
               <span style="font-size:9px;color:var(--tx3);font-family:var(--fm)">Proof:</span>
               <select class="mini-sel" onchange="updSlot(${di},${si},'pfIdx',+this.value)">
-                ${S.proofs.map((p,pi)=>`<option value="${pi}" ${pi===sl.pfIdx?'selected':''}>${p.txt.substring(0,35)}...</option>`).join('')}
+                ${fProofs.map((p,pi)=>`<option value="${pi}" ${pi===sl.pfIdx?'selected':''}>${p.txt.substring(0,35)}...</option>`).join('')}
               </select>
               <span style="font-size:9px;color:var(--tx3);font-family:var(--fm)">CTA:</span>
               <select class="mini-sel" onchange="updSlot(${di},${si},'ctaIdx',+this.value)">
-                ${S.ctas.map((c,ci)=>`<option value="${ci}" ${ci===sl.ctaIdx?'selected':''}>${c.txt.substring(0,30)}...</option>`).join('')}
+                ${fCTAs.map((c,ci)=>`<option value="${ci}" ${ci===sl.ctaIdx?'selected':''}>${c.txt.substring(0,30)}...</option>`).join('')}
               </select>
               ${sl.prod&&(sl.prod.descVariants||[]).length>1?`<span style="font-size:9px;color:var(--tx3);font-family:var(--fm)">Isi:</span>
               <select class="mini-sel" onchange="updSlot(${di},${si},'descIdx',+this.value)">
@@ -223,7 +292,7 @@ function renderSchedOutput(){
             </div>
             <div class="scr-body" id="sb-${di}-${si}">${buildSlotScript(sl.prod,sl.hIdx,sl.pfIdx,sl.ctaIdx,sl.descIdx)}</div>
           </div>
-        `).join('')}
+        `;}).join('')}
       </div>
     </div>`).join('');
 }
@@ -238,9 +307,10 @@ function updSlot(di,si,key,val){
 }
 function rotateSlot(di,si){
   const sl=schedData[di].slots[si];
-  sl.hIdx=(sl.hIdx+1)%Math.max(S.hooks.length,1);
-  sl.pfIdx=(sl.pfIdx+1)%Math.max(S.proofs.length,1);
-  sl.ctaIdx=(sl.ctaIdx+1)%Math.max(S.ctas.length,1);
+  const cat = sl.prod ? (sl.prod.kategori || 'Umum') : 'Umum';
+  sl.hIdx=(sl.hIdx+1)%Math.max(getFilteredHooks(cat).length,1);
+  sl.pfIdx=(sl.pfIdx+1)%Math.max(getFilteredProofs(cat).length,1);
+  sl.ctaIdx=(sl.ctaIdx+1)%Math.max(getFilteredCTAs(cat).length,1);
   if(sl.prod&&(sl.prod.descVariants||[]).length>1) sl.descIdx=(sl.descIdx+1)%sl.prod.descVariants.length;
   renderSchedOutput();toast('Rotasi hook/proof/CTA');
 }
@@ -259,16 +329,183 @@ function openAssign(di,si){
   document.getElementById('assign-list').innerHTML=ps.map(p=>`
     <div class="hk-item" style="cursor:pointer" onclick="doAssign('${p.id}')">
       ${bH(p.klasifikasi)}
-      <div class="hk-txt"><div style="font-weight:600;font-size:11.5px">${p.nama.substring(0,45)}</div><div style="font-size:9.5px;color:var(--tx3)">${p.jenis||'—'} · Score: ${p.score} · komisi Rp${fmt(p.komisi||0)}</div></div>
+      <div class="hk-txt"><div style="font-weight:600;font-size:11.5px">${p.nama.substring(0,45)}</div><div style="font-size:9.5px;color:var(--tx3)">${p.jenis||'—'} · Score: ${p.benchScore} · komisi Rp${fmt(p.komisi||0)}</div></div>
     </div>`).join('')+`<div class="hk-item" style="cursor:pointer" onclick="doAssignEmpty()"><div class="hk-txt" style="color:var(--tx3)">— Kosongkan slot —</div></div>`;
   openModal('modal-assign');
 }
 function doAssign(pid){
   const p=S.products.find(pr=>pr.id==pid);
-  if(p){schedData[assignTarget.di].slots[assignTarget.si].prod=p;}
+  if(p){
+    const sl = schedData[assignTarget.di].slots[assignTarget.si];
+    sl.prod=p;
+    const cat = p.kategori || 'Umum';
+    sl.hIdx = Math.floor(Math.random() * Math.max(getFilteredHooks(cat).length, 1));
+    sl.pfIdx = Math.floor(Math.random() * Math.max(getFilteredProofs(cat).length, 1));
+    sl.ctaIdx = Math.floor(Math.random() * Math.max(getFilteredCTAs(cat).length, 1));
+    sl.descIdx = 0;
+  }
   closeModal('modal-assign');renderSchedOutput();toast('Di-assign');
 }
 function doAssignEmpty(){schedData[assignTarget.di].slots[assignTarget.si].prod=null;closeModal('modal-assign');renderSchedOutput();}
+
+// ============================================================
+// HISTORY & DOWNLOAD HELPERS
+// ============================================================
+function loadSchedHistory(id) {
+  const entry = S.scheduleHistory.find(h => h.id === id);
+  if (!entry) { toast('Riwayat tidak ditemukan'); return; }
+  
+  schedData = entry.data.map(day => {
+    return {
+      dt: new Date(day.dt),
+      dn: day.dn,
+      volLabel: day.volLabel,
+      multiplier: day.multiplier,
+      open: true,
+      slots: day.slots.map(s => {
+        const prod = S.products.find(p => p.id === s.prodId);
+        return {
+          time: s.time,
+          prod: prod || null,
+          type: s.type,
+          typeLabel: s.typeLabel,
+          hIdx: s.hIdx,
+          pfIdx: s.pfIdx,
+          ctaIdx: s.ctaIdx,
+          descIdx: s.descIdx,
+          sopen: false
+        };
+      })
+    };
+  });
+  renderSchedOutput();
+  toast('Jadwal loaded dari riwayat');
+}
+
+function deleteSchedHistory(id) {
+  if (!confirm('Hapus entry riwayat ini?')) return;
+  S.scheduleHistory = S.scheduleHistory.filter(h => h.id !== id);
+  save();
+  renderSchedHistory();
+  toast('Riwayat dihapus');
+}
+
+function downloadScheduleCSV(id) {
+  const entry = S.scheduleHistory.find(h => h.id === id);
+  if (!entry) return;
+  
+  let csvContent = '\uFEFF';
+  csvContent += 'Tanggal,Hari,Jam,Produk,Klasifikasi,Hook,Isi Konten,Proof,CTA\n';
+  
+  entry.data.forEach(day => {
+    const dtStr = new Date(day.dt).toLocaleDateString('id');
+    day.slots.forEach(s => {
+      const prod = S.products.find(p => p.id === s.prodId);
+      const pName = prod ? prod.nama : '—';
+      const pKlas = prod ? prod.klasifikasi : '—';
+      
+      let hook = '—', proof = '—', cta = '—', desc = '—';
+      if (prod) {
+        const cat = prod.kategori || 'Umum';
+        const fHooks = getFilteredHooks(cat);
+        const fProofs = getFilteredProofs(cat);
+        const fCTAs = getFilteredCTAs(cat);
+        hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace('[PRODUK]', (prod.jenis||prod.nama.split(' ').slice(0,3).join(' '))) || '';
+        proof = (fProofs[s.pfIdx] || fProofs[0])?.txt || '';
+        cta = (fCTAs[s.ctaIdx] || fCTAs[0])?.txt || '';
+        desc = (prod.descVariants||[])[s.descIdx] || '';
+      }
+      
+      const escape = (txt) => '"' + String(txt || '').replace(/"/g, '""') + '"';
+      csvContent += `${escape(dtStr)},${escape(day.dn)},${escape(s.time)},${escape(pName)},${escape(pKlas)},${escape(hook)},${escape(desc)},${escape(proof)},${escape(cta)}\n`;
+    });
+  });
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Jadwal_${entry.label.replace(/\s+/g, '_')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function downloadScheduleTXT(id) {
+  const entry = S.scheduleHistory.find(h => h.id === id);
+  if (!entry) return;
+  
+  let txtContent = `=== JADWAL KONTEN SCRIPT ===\n`;
+  txtContent += `Label: ${entry.label}\n`;
+  txtContent += `Dibuat pada: ${entry.createdAt}\n`;
+  txtContent += `Total Slot: ${entry.totalSlots}\n\n`;
+  
+  entry.data.forEach(day => {
+    const dtStr = new Date(day.dt).toLocaleDateString('id', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    txtContent += `==================================================\n`;
+    txtContent += `${dtStr.toUpperCase()}\n`;
+    txtContent += `==================================================\n\n`;
+    
+    day.slots.forEach(s => {
+      const prod = S.products.find(p => p.id === s.prodId);
+      txtContent += `[${s.time}] - ${s.typeLabel || s.type}\n`;
+      if (prod) {
+        txtContent += `Produk: ${prod.nama}\n`;
+        txtContent += `Klasifikasi: ${prod.klasifikasi} (Score: ${prod.benchScore})\n`;
+        
+        const cat = prod.kategori || 'Umum';
+        const fHooks = getFilteredHooks(cat);
+        const fProofs = getFilteredProofs(cat);
+        const fCTAs = getFilteredCTAs(cat);
+        const hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace('[PRODUK]', (prod.jenis||prod.nama.split(' ').slice(0,3).join(' '))) || '';
+        const proof = (fProofs[s.pfIdx] || fProofs[0])?.txt || '';
+        const cta = (fCTAs[s.ctaIdx] || fCTAs[0])?.txt || '';
+        const desc = (prod.descVariants||[])[s.descIdx] || '[Belum ada isi konten]';
+        
+        txtContent += `\n[HOOK]\n${hook}\n`;
+        txtContent += `\n[ISI]\n${desc}\n`;
+        txtContent += `\n[PROOF]\n${proof}\n`;
+        txtContent += `\n[CTA]\n${cta}\n`;
+      } else {
+        txtContent += `— Slot Kosong —\n`;
+      }
+      txtContent += `--------------------------------------------------\n\n`;
+    });
+  });
+  
+  const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Jadwal_${entry.label.replace(/\s+/g, '_')}.txt`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function renderSchedHistory() {
+  const wrap = document.getElementById('sched-history-list');
+  if (!wrap) return;
+  
+  const hist = S.scheduleHistory || [];
+  wrap.innerHTML = hist.length ? hist.map(h => `
+    <div style="padding:10px; background:var(--bg2); border:1px solid var(--bd); border-radius:var(--r2); margin-bottom:8px; display:flex; flex-direction:column; gap:6px">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div style="font-weight:600; font-size:11.5px; color:var(--tx)">${h.label}</div>
+        <div style="font-size:9.5px; color:var(--tx3); margin-left:auto">${h.createdAt}</div>
+      </div>
+      <div style="font-size:10px; color:var(--tx2)">
+        Rentang: <strong>${h.range} hari</strong> · ${h.totalSlots} slot total (${h.slotPerDay} slot/hari)
+      </div>
+      <div style="display:flex; gap:4px; margin-top:2px">
+        <button class="btn btn-p btn-xs" onclick="loadSchedHistory('${h.id}')">Load</button>
+        <button class="btn btn-g btn-xs" onclick="downloadScheduleCSV('${h.id}')">⬇ CSV</button>
+        <button class="btn btn-g btn-xs" onclick="downloadScheduleTXT('${h.id}')">⬇ TXT</button>
+        <button class="btn btn-d btn-xs" onclick="deleteSchedHistory('${h.id}')" style="margin-left:auto">✕ Hapus</button>
+      </div>
+    </div>
+  `).join('') : `<div style="font-size:10.5px; color:var(--tx3); text-align:center; padding:16px 0">Belum ada riwayat jadwal.</div>`;
+}
 
 // ============================================================
 // SEARCH ASSIGN PRODUK

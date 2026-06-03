@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Master Produk (Render list dengan metrik AI-Emulator CS/CE, Generate Deskripsi dengan AI, Quick Add/Save, Delete)
+Tujuan: Modul Master Produk & Kategori (Render list, metrik AI-Emulator, Deskripsi AI, Quick Add/Save, Kategori Dinamis)
 Caller: 04-nav.js, 08-views.js, UI Events
 Dependensi: S, save, callGemini (02-state); bH, refreshScores (03-scoring); fmt (05-dashboard); toast (02-state); openModal, closeModal (04-nav)
-Main Functions: renderProduk, renderPList, delProd, openAddProd, openGenDesc, doGenDesc, saveNewProd
+Main Functions: renderProduk, renderPList, delProd, openAddProd, openGenDesc, doGenDesc, saveNewProd, renderCatOptions, addNewCategory, removeCategory, renderCatManager
 Side Effects: LocalStorage write (via save()), Gemini API call, DOM rendering
 */
 
@@ -18,17 +18,27 @@ function renderProduk(){
 function renderPList(elId,ps){
   const el=document.getElementById(elId);if(!el)return;
   if(!ps.length){el.innerHTML=`<div class="empty"><div class="empty-t">Kosong</div></div>`;return;}
-  el.innerHTML=ps.map((p,i)=>`
+  el.innerHTML=ps.map((p,i)=>{
+    const badges = [];
+    badges.push(bH(p.klasifikasi));
+    if (p.kategori) badges.push(`<span class="badge bp">${p.kategori}</span>`);
+    if (p.gmvAktif) badges.push('<span class="gdot on"></span>');
+    
+    const subtitleParts = [];
+    if (p.jenis && p.jenis !== 'Produk') subtitleParts.push(p.jenis);
+    if (p.harga) subtitleParts.push('Rp' + fmt(p.harga));
+    const subtitle = subtitleParts.join(' · ');
+
+    return `
     <div class="prod-card">
       <div class="prod-card-hdr">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-            <span class="prod-type-badge">${p.jenis||'Produk'}</span>
-            ${bH(p.klasifikasi)}
-            ${p.gmvAktif?'<span class="gdot on"></span>':''}
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+            ${badges.join('')}
           </div>
-          <div style="font-size:12px;font-weight:600;color:var(--tx)">${(p.jenis||p.nama).substring(0,40)}</div>
-          <div class="prod-name-full">${p.nama.substring(0,70)}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.nama}">${p.nama.substring(0,60)}</div>
+          ${subtitle ? `<div style="font-size:10px;color:var(--tx2);margin-top:2px">${subtitle}</div>` : ''}
+          <div class="prod-name-full" style="font-size:9px;color:var(--tx3);margin-top:1px">${p.nama}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div class="sb-w" style="width:70px"><div class="sb-b"><div class="sf" style="width:${Math.min(100,p.benchScore||0)}%;background:${p.klasifikasi==='WINNING'?'var(--gr)':p.klasifikasi==='POTENTIAL'?'var(--bl)':p.klasifikasi==='DROP'?'var(--rd)':'var(--am)'}"></div></div><div class="sn" title="${p.scoreMode==='topsis'?'TOPSIS: '+(p.topsisScore||0).toFixed(3):''}">${p.benchScore||0}</div></div>
@@ -68,11 +78,15 @@ function renderPList(elId,ps){
         <button class="btn btn-g btn-xs" onclick="editProd(${S.products.indexOf(p)})">✎ Edit</button>
         <button class="btn btn-d btn-xs" onclick="delProd(${S.products.indexOf(p)})">✕ Hapus</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delProd(i){if(confirm('Hapus?')){S.products.splice(i,1);refreshScores();renderProduk();toast('Dihapus');}}
-function openAddProd(){openModal('modal-add');}
+function openAddProd(){
+  renderCatOptions('add-cat', 'Umum');
+  openModal('modal-add');
+}
 
 // Generate desc modal
 let genDescTarget=-1;
@@ -151,7 +165,7 @@ function editProd(pi){
   document.getElementById('add-jenis').value=p.jenis||'';
   document.getElementById('add-h').value=p.harga||'';
   document.getElementById('add-k').value=p.komisi||'';
-  document.getElementById('add-cat').value=p.kategori||'umum';
+  renderCatOptions('add-cat', p.kategori || 'Umum');
   document.getElementById('add-g').value=p.gmvAktif?'1':'0';
   document.getElementById('add-l').value=p.labelPrestasi||'-';
   document.getElementById('modal-add').dataset.editIdx=pi;
@@ -163,7 +177,7 @@ function editProd(pi){
 // ============================================================
 function quickAddProd(){
   const n=document.getElementById('qp-nama').value.trim();if(!n){toast('Nama wajib');return;}
-  S.products.push({id:'p'+Date.now(),nama:n,jenis:document.getElementById('qp-jenis').value.trim()||'Produk',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
+  S.products.push({id:'p'+Date.now(),nama:n,jenis:document.getElementById('qp-jenis').value.trim()||'',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   refreshScores();save();toast('Produk ditambahkan');
   ['qp-nama','qp-jenis','qp-h','qp-k','qp-l'].forEach(id=>document.getElementById(id).value='');
 }
@@ -171,15 +185,77 @@ function quickAddProd(){
 function saveNewProd(){
   const n=document.getElementById('add-nama').value.trim();if(!n){toast('Nama wajib');return;}
   const editIdx=document.getElementById('modal-add').dataset.editIdx;
-  const prodData={nama:n,jenis:document.getElementById('add-jenis').value.trim()||'Produk',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1'};
+  const prodData={nama:n,jenis:document.getElementById('add-jenis').value.trim()||'',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1'};
   if(editIdx!==undefined&&editIdx!==''){
     Object.assign(S.products[parseInt(editIdx)],prodData);
     delete document.getElementById('modal-add').dataset.editIdx;
   }else{
-    S.products.push({id:'p'+Date.now(),...prodData,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
+    S.products.push({id:'p'+Date.now(),...prodData,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   }
   refreshScores();save();closeModal('modal-add');renderProduk();toast('Disimpan');
   ['add-nama','add-jenis','add-h','add-k','add-l'].forEach(id=>document.getElementById(id).value='');
+}
+
+// ============================================================
+// DYNAMIC CATEGORIES HELPERS
+// ============================================================
+function renderCatOptions(selId, selected) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  let cats = S.categories || [];
+  if (selected && !cats.includes(selected)) {
+    cats = [...cats, selected];
+  }
+  sel.innerHTML = cats.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+}
+
+function addNewCategory() {
+  const input = document.getElementById('new-cat-name');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) { toast('Nama kategori kosong'); return; }
+  
+  if (!S.categories) S.categories = [];
+  if (S.categories.map(c=>c.toLowerCase()).includes(val.toLowerCase())) {
+    toast('Kategori sudah ada');
+    return;
+  }
+  
+  S.categories.push(val);
+  save();
+  input.value = '';
+  renderCatManager();
+  // Update all dropdowns
+  renderCatOptions('qp-cat', 'Umum');
+  renderCatOptions('add-cat', 'Umum');
+  if (typeof renderBankCatDropdowns === 'function') renderBankCatDropdowns();
+  toast('Kategori "' + val + '" ditambahkan');
+}
+
+function removeCategory(name) {
+  if (name === 'Umum') { toast('Kategori "Umum" tidak bisa dihapus'); return; }
+  if (!confirm(`Hapus kategori "${name}"? Kategori produk yang memakai ini akan tetap ada, tapi disarankan disesuaikan.`)) return;
+  
+  S.categories = (S.categories || []).filter(c => c !== name);
+  save();
+  renderCatManager();
+  renderCatOptions('qp-cat', 'Umum');
+  renderCatOptions('add-cat', 'Umum');
+  if (typeof renderBankCatDropdowns === 'function') renderBankCatDropdowns();
+  toast('Kategori "' + name + '" dihapus');
+}
+
+function renderCatManager() {
+  const wrap = document.getElementById('cat-list-wrap');
+  if (!wrap) return;
+  
+  const cats = S.categories || [];
+  wrap.innerHTML = cats.map(c => `
+    <span class="badge bp" style="padding:4px 8px;font-size:10px;display:inline-flex;align-items:center;gap:6px">
+      ${c}
+      ${c !== 'Umum' ? `<span style="cursor:pointer;color:var(--rd);font-weight:bold" onclick="removeCategory('${c}')">✕</span>` : ''}
+    </span>
+  `).join('');
 }
 
 // ============================================================
