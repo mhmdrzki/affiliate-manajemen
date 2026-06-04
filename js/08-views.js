@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru), Benchmark, dan Inisialisasi Aplikasi
+Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
-Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots
 Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
@@ -262,6 +262,51 @@ function parsePeriodeDates(periodeStr, fallbackTs) {
   return { start: d, end: d };
 }
 
+/**
+ * Cek relasi 2 periode berdasarkan timestamp start/end.
+ * Returns: 'contains' | 'contained' | 'overlap' | 'none'
+ */
+function periodRelation(aStart, aEnd, bStart, bEnd) {
+  if (aStart <= bStart && aEnd >= bEnd) return 'contains';
+  if (bStart <= aStart && bEnd >= aEnd) return 'contained';
+  if (aStart <= bEnd && aEnd >= bStart) return 'overlap';
+  return 'none';
+}
+
+/**
+ * Merge snapshot baru ke array snapshots yang sudah ada.
+ * Menjamin array tetap non-overlapping.
+ */
+function mergeSnapshot(snapshots, newSnap) {
+  // 1. Cek apakah newSnap sudah tercakup oleh existing
+  for (const s of snapshots) {
+    const rel = periodRelation(s.pStart, s.pEnd, newSnap.pStart, newSnap.pEnd);
+    if (rel === 'contains') return; // existing sudah cover → skip
+  }
+  
+  // 2. Hapus semua existing yang tercakup oleh newSnap, atau overlap
+  for (let i = snapshots.length - 1; i >= 0; i--) {
+    const rel = periodRelation(newSnap.pStart, newSnap.pEnd, snapshots[i].pStart, snapshots[i].pEnd);
+    if (rel === 'contains' || rel === 'overlap') {
+      snapshots.splice(i, 1); // newSnap lebih besar/baru atau overlap → replace/remove
+    }
+  }
+  
+  // 3. Tambah snapshot baru
+  snapshots.push(newSnap);
+}
+
+/**
+ * Hitung total metrik dari array snapshots non-overlapping.
+ */
+function sumSnapshots(snapshots) {
+  return snapshots.reduce((acc, s) => ({
+    gmv: acc.gmv + (s.gmv || 0),
+    itemsSold: acc.itemsSold + (s.itemsSold || 0),
+    views: acc.views + (s.views || 0)
+  }), { gmv: 0, itemsSold: 0, views: 0 });
+}
+
 function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
@@ -281,16 +326,51 @@ function importRows(rows,filename){
     const { start: pStart, end: pEnd } = parsePeriodeDates(periode, Date.now());
     const dupIdx=S.contents.findIndex(c=>c.produk.toLowerCase()===produk.toLowerCase()&&c.tanggal===tanggal&&tanggal!==''&&c.durasi===durasi);
     if(dupIdx>=0){
-      S.contents[dupIdx].gmv=Math.max(S.contents[dupIdx].gmv||0,gmv);
-      S.contents[dupIdx].itemsSold=Math.max(S.contents[dupIdx].itemsSold||0,sold);
-      S.contents[dupIdx].ctr=Math.max(S.contents[dupIdx].ctr||0,ctr);
-      S.contents[dupIdx].ctor=Math.max(S.contents[dupIdx].ctor||0,ctor);
-      S.contents[dupIdx].views=Math.max(S.contents[dupIdx].views||0,views);
-      if(pEnd>(S.contents[dupIdx].periodeEnd||0)){
-        S.contents[dupIdx].periode=periode;
-        S.contents[dupIdx].periodeStart=pStart;
-        S.contents[dupIdx].periodeEnd=pEnd;
+      const existing = S.contents[dupIdx];
+      
+      // Inisialisasi periodSnapshots jika data lama (migrasi)
+      if (!existing.periodSnapshots) {
+        existing.periodSnapshots = [{
+          periode: existing.periode || '',
+          pStart: existing.periodeStart || pStart,
+          pEnd: existing.periodeEnd || pEnd,
+          gmv: existing.gmv || 0,
+          itemsSold: existing.itemsSold || 0,
+          views: existing.views || 0,
+          ctr: existing.ctr || 0,
+          ctor: existing.ctor || 0
+        }];
       }
+      
+      // Merge snapshot baru
+      mergeSnapshot(existing.periodSnapshots, {
+        periode, pStart, pEnd, gmv, 
+        itemsSold: sold, views, ctr, ctor
+      });
+      
+      // Rekalkulasi total dari semua snapshot
+      const totals = sumSnapshots(existing.periodSnapshots);
+      existing.gmv = totals.gmv;
+      existing.itemsSold = totals.itemsSold;
+      existing.views = totals.views;
+      
+      // Ambil CTR/CTOR dan periode dari snapshot ter-update (pEnd paling besar)
+      let latestSnap = existing.periodSnapshots[0];
+      for (const s of existing.periodSnapshots) {
+        if ((s.pEnd || 0) > (latestSnap.pEnd || 0)) {
+          latestSnap = s;
+        }
+      }
+      if (latestSnap) {
+        existing.ctr = latestSnap.ctr || 0;
+        existing.ctor = latestSnap.ctor || 0;
+        existing.periode = latestSnap.periode;
+      }
+      
+      // Range periode mencakup seluruh snapshot
+      existing.periodeStart = Math.min(...existing.periodSnapshots.map(s => s.pStart || 0));
+      existing.periodeEnd = Math.max(...existing.periodSnapshots.map(s => s.pEnd || 0));
+      
       merged++;return;
     }
 
@@ -302,7 +382,24 @@ function importRows(rows,filename){
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
-    S.contents.push({id:'c'+Date.now()+Math.random(),produk,desc,tanggal,durasi,periode,periodeStart:pStart,periodeEnd:pEnd,gmv,itemsSold:sold,ctr,ctor,views,estK,ts:Date.now()});
+    S.contents.push({
+      id: 'c'+Date.now()+Math.random(),
+      produk,
+      desc,
+      tanggal,
+      durasi,
+      periode,
+      periodeStart: pStart,
+      periodeEnd: pEnd,
+      gmv,
+      itemsSold: sold,
+      ctr,
+      ctor,
+      views,
+      periodSnapshots: [{ periode, pStart, pEnd, gmv, itemsSold: sold, views, ctr, ctor }],
+      estK,
+      ts: Date.now()
+    });
     added++;
   });
   S.importHistory.push({filename,added,merged,skipped,ts:new Date().toLocaleString('id'),total:S.contents.length});
@@ -573,6 +670,7 @@ refreshScores();
 renderDash();
 document.getElementById('sd-date').value=new Date().toISOString().split('T')[0];
 gdUpdateUI();
+if (typeof gdInitOnLoad === 'function') gdInitOnLoad();
 initGeminiKey();
 if (typeof renderCatManager === 'function') renderCatManager();
 if (typeof renderCatOptions === 'function') renderCatOptions('qp-cat', 'Umum');

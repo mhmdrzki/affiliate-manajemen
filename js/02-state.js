@@ -62,12 +62,13 @@ content = {
   periode: String,     // Periode data analitik berjalan (string asli dari Excel)
   periodeStart: Number,// Timestamp milidetik awal rentang periode (parsed dari kolom periode)
   periodeEnd: Number,  // Timestamp milidetik akhir rentang periode (parsed dari kolom periode)
-  gmv: Number,         // GMV kontribusi dari video ini
-  itemsSold: Number,   // Unit produk terjual dari video ini
-  ctr: Number,         // Click-Through Rate (%)
-  ctor: Number,        // Click-to-Order Rate (%)
-  views: Number,       // Jumlah penayangan video
+  gmv: Number,         // GMV kontribusi dari video ini (SUM dari periodSnapshots)
+  itemsSold: Number,   // Unit produk terjual dari video ini (SUM dari periodSnapshots)
+  ctr: Number,         // Click-Through Rate (%) (dari snapshot periode terakhr)
+  ctor: Number,        // Click-to-Order Rate (%) (dari snapshot periode terakhr)
+  views: Number,       // Jumlah penayangan video (SUM dari periodSnapshots)
   estK: Number,        // Estimasi komisi (itemsSold * prod.komisi)
+  periodSnapshots: [], // Array snapshot per-periode non-overlapping: { periode, pStart, pEnd, gmv, itemsSold, views, ctr, ctor }
   ts: Number           // Timestamp internal pembuatan objek
 }
 ================================================================================

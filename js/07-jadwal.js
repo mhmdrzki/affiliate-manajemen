@@ -384,10 +384,12 @@ function loadSchedHistory(id) {
 
 function deleteSchedHistory(id) {
   if (!confirm('Hapus entry riwayat ini?')) return;
+  if (!S.scheduleHistory) { S.scheduleHistory = []; save(); renderSchedHistory(); return; }
+  const before = S.scheduleHistory.length;
   S.scheduleHistory = S.scheduleHistory.filter(h => h.id !== id);
   save();
   renderSchedHistory();
-  toast('Riwayat dihapus');
+  toast(S.scheduleHistory.length < before ? 'Riwayat dihapus' : 'Entry tidak ditemukan');
 }
 
 function downloadScheduleCSV(id) {
@@ -489,7 +491,7 @@ function renderSchedHistory() {
   
   const hist = S.scheduleHistory || [];
   wrap.innerHTML = hist.length ? hist.map(h => `
-    <div style="padding:10px; background:var(--bg2); border:1px solid var(--bd); border-radius:var(--r2); margin-bottom:8px; display:flex; flex-direction:column; gap:6px">
+    <div class="sh-entry" data-shid="${h.id}" style="padding:10px; background:var(--bg2); border:1px solid var(--bd); border-radius:var(--r2); margin-bottom:8px; display:flex; flex-direction:column; gap:6px">
       <div style="display:flex; justify-content:space-between; align-items:center">
         <div style="font-weight:600; font-size:11.5px; color:var(--tx)">${h.label}</div>
         <div style="font-size:9.5px; color:var(--tx3); margin-left:auto">${h.createdAt}</div>
@@ -498,13 +500,24 @@ function renderSchedHistory() {
         Rentang: <strong>${h.range} hari</strong> · ${h.totalSlots} slot total (${h.slotPerDay} slot/hari)
       </div>
       <div style="display:flex; gap:4px; margin-top:2px">
-        <button class="btn btn-p btn-xs" onclick="loadSchedHistory('${h.id}')">Load</button>
-        <button class="btn btn-g btn-xs" onclick="downloadScheduleCSV('${h.id}')">⬇ CSV</button>
-        <button class="btn btn-g btn-xs" onclick="downloadScheduleTXT('${h.id}')">⬇ TXT</button>
-        <button class="btn btn-d btn-xs" onclick="deleteSchedHistory('${h.id}')" style="margin-left:auto">✕ Hapus</button>
+        <button class="btn btn-p btn-xs sh-act-load">Load</button>
+        <button class="btn btn-g btn-xs sh-act-csv">⬇ CSV</button>
+        <button class="btn btn-g btn-xs sh-act-txt">⬇ TXT</button>
+        <button class="btn btn-d btn-xs sh-act-del" style="margin-left:auto">✕ Hapus</button>
       </div>
     </div>
   `).join('') : `<div style="font-size:10.5px; color:var(--tx3); text-align:center; padding:16px 0">Belum ada riwayat jadwal.</div>`;
+
+  // Single event delegation — aman dari masalah escaping
+  wrap.onclick = function(e) {
+    const entry = e.target.closest('.sh-entry');
+    if (!entry) return;
+    const id = entry.dataset.shid;
+    if (e.target.closest('.sh-act-load')) loadSchedHistory(id);
+    if (e.target.closest('.sh-act-csv'))  downloadScheduleCSV(id);
+    if (e.target.closest('.sh-act-txt'))  downloadScheduleTXT(id);
+    if (e.target.closest('.sh-act-del'))  deleteSchedHistory(id);
+  };
 }
 
 // ============================================================

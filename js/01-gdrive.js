@@ -1,6 +1,6 @@
 /*
-Tujuan: Google Drive Sync Module
-Caller: index.html
+Tujuan: Google Drive Sync Module dengan Token Expiry & Auto-Load Lintas Perangkat
+Caller: index.html, 08-views.js (init)
 Dependensi: toast (dari 02-state), S dan save (dari 02-state)
 */
 const GD_CLIENT_ID = '486908118665-jikf3m2l1mombrbmh3mqujmergsqfigc.apps.googleusercontent.com';
@@ -23,11 +23,36 @@ try {
   const stored = JSON.parse(localStorage.getItem('affos_gd') || '{}');
   gdToken = stored.token || null;
   gdFileId = stored.fileId || null;
-  if (gdToken) gdConnected = true;
+  gdTokenExpiry = stored.expiry || null;
+  if (gdToken && gdTokenExpiry) {
+    const remainingMs = gdTokenExpiry - Date.now();
+    if (remainingMs > 0) {
+      gdConnected = true;
+      clearTimeout(gdExpiryTimer);
+      clearTimeout(gdExpiryTimerDead);
+      gdExpiryTimer = setTimeout(() => {
+        toast('⚠️ Sesi Drive akan berakhir dalam 5 menit — backup otomatis disimpan');
+        gdSaveNow();
+      }, Math.max(remainingMs - 300000, 0));
+      gdExpiryTimerDead = setTimeout(() => {
+        gdHandleExpired();
+      }, remainingMs);
+    } else {
+      gdToken = null; gdFileId = null; gdTokenExpiry = null;
+      gdExpiredFlag = true;
+      localStorage.removeItem('affos_gd');
+    }
+  } else if (gdToken) {
+    gdConnected = true;
+  }
 } catch(e) {}
 
 function gdSaveLocal() {
-  try { localStorage.setItem('affos_gd', JSON.stringify({token: gdToken, fileId: gdFileId})); } catch(e) {}
+  try { 
+    localStorage.setItem('affos_gd', JSON.stringify({
+      token: gdToken, fileId: gdFileId, expiry: gdTokenExpiry
+    })); 
+  } catch(e) {}
 }
 
 function gdUpdateUI() {
@@ -219,6 +244,26 @@ async function gdSaveNow() {
     toast('Gagal simpan ke Drive');
   }
   gdSyncing = false; gdUpdateUI();
+}
+
+async function gdInitOnLoad() {
+  if (!gdToken) return;
+  try {
+    const res = await fetch(
+      'https://www.googleapis.com/drive/v3/about?fields=user',
+      { headers: { Authorization: 'Bearer ' + gdToken } }
+    );
+    if (res.ok) {
+      gdConnected = true;
+      gdUpdateUI();
+      await gdLoadFromDrive();
+    } else if (res.status === 401) {
+      gdHandleExpired();
+    }
+  } catch(e) {
+    // Offline — gunakan data lokal
+    gdUpdateUI();
+  }
 }
 
 function gdHandleExpired() {

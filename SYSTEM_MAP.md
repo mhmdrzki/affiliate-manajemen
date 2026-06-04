@@ -21,7 +21,7 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 
 ## 2. Core Logic Flow (Function-Level Flowchart)
 
-* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` (baca format 12 kolom baru, `nama_produk` wajib, `kategori_produk` opsional, ignore `sumber_data`) / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
+* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` (baca format 12 kolom baru dengan Period Snapshots merge, `nama_produk` wajib, `kategori_produk` opsional, ignore `sumber_data`) / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
 * **Scoring & Klasifikasi**: `refreshScores()` ➔ `recomputeProductStats()` (Agregasi metrik: salesConsistency, conversionEfficiency, conversionRate, bestDays/Hours; views decayed, sales/GMV tanpa decay) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria: CTOR 30%, Sold 25%, CTR 20%, GMV 10%, nVideo 10%, conversionRate 5%) / `scoreBenchmark()` ➔ `classifyP()` (WINNING volume-first: sold >= 4, sold >= 2 + CR >= 0.5%, sc >= 0.4 + sold >= 2, ts >= 0.60) ➔ Urutkan `S.products` ➔ `save()`
 * **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` & `computeDayMultiplier()` ➔ Affinity-Based `pickWithCooldown()` (+40% match hari, +60% match jam) ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries)
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
@@ -96,3 +96,6 @@ Semua risiko teridentifikasi dari versi sebelumnya telah ditangani:
 - ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.
 - ✅ **Benchmark Campur Aduk** diselesaikan dengan sistem Multi-Profil Benchmark (opsi *merge/overwrite*) untuk melacak pola antar-affiliator secara terpisah.
 - ✅ **Bias GMV Produk Mahal** dimitigasi dengan TOPSIS volume-first (Sold bobot naik ke 25%, GMV turun ke 10%, kriteria baru conversionRate 5%) dan klasifikasi WINNING murni berbasis volume penjualan (sold >= 4 atau sold >= 2 + CR >= 0.5%).
+- ✅ **Data Duplikat Konten Multi-Periode** ditangani dengan `periodSnapshots` non-overlapping array & overlap detection (contains/contained/overlap).
+- ✅ **Error Hapus Riwayat Jadwal** diselesaikan dengan event delegation pada DOM wrap riwayat jadwal.
+- ✅ **Sinkronisasi Drive Lintas Perangkat** ditangani dengan validasi token dan `gdInitOnLoad()` auto-load saat aplikasi dibuka.
