@@ -128,10 +128,10 @@ function genSched(){
   // Hitung kuota per tier
   const quotas = allocateQuotas(slots.length, winPct);
 
-  // Kursor round-robin per tier, persisten lintas hari untuk rotasi
-  const winCursor = { idx: 0 };
-  const potCursor = { idx: 0 };
-  const testCursor = { idx: 0 };
+  // Kursor round-robin per tier, diinisialisasi secara acak agar hasil generate bervariasi tiap klik
+  const winCursor = { idx: Math.floor(Math.random() * Math.max(winning.length, 1)) };
+  const potCursor = { idx: Math.floor(Math.random() * Math.max(potential.length, 1)) };
+  const testCursor = { idx: Math.floor(Math.random() * Math.max(testing.length, 1)) };
 
   schedData=[];
   for(let d=0;d<range;d++){
@@ -139,11 +139,6 @@ function genSched(){
     const dn=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][dt.getDay()];
     
     const daySlotsTimes = [...slots].sort();
-
-    // Rotasi offset per hari agar produk bergilir
-    winCursor.idx = (d * quotas.win) % Math.max(winning.length, 1);
-    potCursor.idx = (d * quotas.pot) % Math.max(potential.length, 1);
-    testCursor.idx = (d * quotas.test) % Math.max(testing.length, 1);
 
     // Klasifikasi slot: jam besar (PRIME) → WINNING, sisanya → TESTING
     const primeSlots = daySlotsTimes.filter(t => PRIME_SLOTS.includes(t));
