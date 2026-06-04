@@ -120,10 +120,10 @@ function genSched(){
   computeDynamicSlots(cbDynJam);
 
   const slots=PATS[pat]||PATS['6'];
-  const winning=S.products.filter(p=>p.klasifikasi==='WINNING'&&!p.stokHabis).sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
-  const potential=S.products.filter(p=>p.klasifikasi==='POTENTIAL'&&!p.stokHabis).sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
-  const testing=S.products.filter(p=>(p.klasifikasi==='UJI COBA'||p.klasifikasi==='MONITOR')&&!p.stokHabis).sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
-  const active=S.products.filter(p=>p.klasifikasi!=='DROP'&&!p.stokHabis).sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const winning=S.products.filter(p=>p.klasifikasi==='WINNING'&&p.status==='aktif').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const potential=S.products.filter(p=>p.klasifikasi==='POTENTIAL'&&p.status==='aktif').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const testing=S.products.filter(p=>(p.klasifikasi==='UJI COBA'||p.klasifikasi==='MONITOR')&&p.status==='aktif').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const active=S.products.filter(p=>p.klasifikasi!=='DROP'&&p.status==='aktif').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
 
   // Hitung kuota per tier
   const quotas = allocateQuotas(slots.length, winPct);
@@ -326,9 +326,10 @@ function openAssign(di,si){
   const searchEl = document.getElementById('search-assign');
   if(searchEl) searchEl.value = '';
   document.getElementById('assign-list').innerHTML=ps.map(p=>`
-    <div class="hk-item" style="cursor:pointer; opacity: ${p.stokHabis ? 0.6 : 1}" onclick="doAssign('${p.id}')">
+    <div class="hk-item" style="cursor:pointer; opacity: ${p.status !== 'aktif' ? 0.6 : 1}" onclick="doAssign('${p.id}')">
       ${bH(p.klasifikasi)}
-      ${p.stokHabis ? `<span class="badge bd-c" style="background:var(--rd);color:white;font-weight:bold;margin-right:4px">HABIS</span>` : ''}
+      ${p.status === 'habis' ? `<span class="badge bd-c" style="background:var(--rd);color:white;font-weight:bold;margin-right:4px">HABIS</span>` : ''}
+      ${p.status === 'jeda' ? `<span class="badge bm" style="background:var(--am);color:white;font-weight:bold;margin-right:4px">JEDA</span>` : ''}
       <div class="hk-txt"><div style="font-weight:600;font-size:11.5px">${p.nama.substring(0,45)}</div><div style="font-size:9.5px;color:var(--tx3)">${p.jenis||'—'} · Score: ${p.benchScore} · komisi Rp${fmt(p.komisi||0)}</div></div>
     </div>`).join('')+`<div class="hk-item" style="cursor:pointer" onclick="doAssignEmpty()"><div class="hk-txt" style="color:var(--tx3)">— Kosongkan slot —</div></div>`;
   openModal('modal-assign');

@@ -140,6 +140,11 @@ try{
     if(S.hooks) S.hooks.forEach(h => { if(!h.kategori) h.kategori = 'Umum'; });
     if(S.proofs) S.proofs.forEach(p => { if(!p.kategori) p.kategori = 'Umum'; });
     if(S.ctas) S.ctas.forEach(c => { if(!c.kategori) c.kategori = 'Umum'; });
+
+    // Migrasi status produk (aktif / jeda / habis)
+    if(S.products) S.products.forEach(p => {
+      if(!p.status) p.status = p.stokHabis ? 'habis' : 'aktif';
+    });
     
     // Migrasi benchmark lama
     if(S.benchmarks&&S.benchmarks.length){

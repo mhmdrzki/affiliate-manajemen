@@ -126,7 +126,15 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb" onclick="tabSw(this,'tp-d')">🔴 Drop</button>
     <button class="btn btn-p btn-sm" style="margin-left:auto;align-self:center" onclick="openAddProd()">+ Tambah</button>
   </div>
-  <div style="margin-bottom:12px"><input type="text" class="fi" id="search-master" placeholder="🔍 Cari nama produk, jenis, atau label..." oninput="filterMaster()"></div>
+  <div style="margin-bottom:12px; display:flex; gap:8px">
+    <input type="text" class="fi" id="search-master" placeholder="🔍 Cari nama produk, jenis, atau label..." oninput="filterMaster()" style="flex:1">
+    <select class="fi" id="filter-status-master" onchange="filterMaster()" style="width:180px; font-size:11.5px">
+      <option value="all">Semua Status</option>
+      <option value="aktif">🟢 Status: Aktif</option>
+      <option value="jeda">🟡 Status: Dijeda</option>
+      <option value="habis">🔴 Status: Stok Habis</option>
+    </select>
+  </div>
   <div class="tp act" id="tp-all"><div id="prod-all-list"></div></div>
   <div class="tp" id="tp-w"><div id="prod-w-list"></div></div>
   <div class="tp" id="tp-p"><div id="prod-p-list"></div></div>
@@ -349,8 +357,12 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="fg"><label class="fl">Seller GMV Max</label>
           <select class="fi" id="qp-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>
         </div>
-        <div class="fg"><label class="fl">Status Stok</label>
-          <select class="fi" id="qp-stok"><option value="0" selected>Tersedia</option><option value="1">Stok Habis</option></select>
+        <div class="fg"><label class="fl">Status</label>
+          <select class="fi" id="qp-stok">
+            <option value="aktif" selected>Tersedia (Aktif)</option>
+            <option value="jeda">Jeda (Ditangguhkan)</option>
+            <option value="habis">Stok Habis</option>
+          </select>
         </div>
       </div>
       <div class="fg"><label class="fl">Label Prestasi</label><input type="text" class="fi" id="qp-l" placeholder="ex: Top selling #4"></div>
@@ -512,8 +524,12 @@ Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
       <div class="fg"><label class="fl">GMV Max Seller</label>
         <select class="fi" id="add-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>
       </div>
-      <div class="fg"><label class="fl">Status Stok</label>
-        <select class="fi" id="add-stok"><option value="0" selected>Tersedia</option><option value="1">Stok Habis</option></select>
+      <div class="fg"><label class="fl">Status</label>
+        <select class="fi" id="add-stok">
+          <option value="aktif" selected>Tersedia (Aktif)</option>
+          <option value="jeda">Jeda (Ditangguhkan)</option>
+          <option value="habis">Stok Habis</option>
+        </select>
       </div>
     </div>
     <div class="fg"><label class="fl">Label Prestasi</label><input type="text" class="fi" id="add-l" placeholder="-"></div>
