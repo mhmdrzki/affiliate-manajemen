@@ -72,11 +72,11 @@ let currentSlotSource='Bawaan';
 const W_BENCH={nVideo:.50,spreadDays:.25,hasPrestasi:.15,maxViews:.10};
 const W_TOPSIS={
   avgCTOR:       .30,  // Tetap prioritas — rasio klik-ke-order
-  totalItemsSold:.25,  // NAIK — konversi riil, indikator paling jujur
+  totalItemsSold:.35,  // NAIK — volume penjualan murni, indikator #1 user
   avgCTR:        .20,  // Tetap penting — engagement
-  totalGMV:      .10,  // TURUN — masih relevan tapi bukan penentu utama
-  nVideo:        .10,  // NAIK — konsistensi push = komitmen affiliator
-  conversionRate:.05   // BARU — sold/views, efisiensi konversi per trafik
+  totalGMV:        0,  // DIHAPUS — user tidak perduli komisi, fokus barang laku
+  nVideo:        .10,  // Konsistensi push = komitmen affiliator
+  conversionRate:.05   // sold/views, efisiensi konversi per trafik
 };
 
 // ── BENCHMARK SCORING (normalized SAW) ───────────────────────
@@ -100,7 +100,7 @@ function scoreBenchmark(ps){
 function scoreTOPSIS(ps){
   if(!ps.length)return;
   const keys=Object.keys(W_TOPSIS);
-  // LOG-DAMPENING: Redam outlier pada totalItemsSold, totalGMV (skala ribuan), dan nVideo
+  // LOG-DAMPENING: Redam outlier pada totalItemsSold dan nVideo (totalGMV bobot=0)
   const raw=ps.map(p=>({
     avgCTOR: p.avgCTOR||0,
     avgCTR: p.avgCTR||0,

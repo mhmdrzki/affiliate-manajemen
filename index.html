@@ -484,15 +484,15 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
 
 <span class="s-hd">MODE 2 — Personal (TOPSIS multi-kriteria)</span>
 <span class="s-nt">Aktif otomatis saat ≥3 produk punya data CTR/CTOR</span>
-<span class="s-tx">Bobot: CTOR 35% · CTR 25% · Sold 20% · GMV 12% · Upload 8%
+<span class="s-tx">Bobot: Sold 35% · CTOR 30% · CTR 20% · Upload 10% · CR 5% (GMV 0%)
 Steps: normalisasi → bobot → jarak ke ideal+ dan ideal−
 Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
 
 <span class="s-hd">Klasifikasi (TOPSIS mode):</span>
-<span style="color:var(--gr)">WINNING  </span><span class="s-tx">TOPSIS ≥ 0.65 ATAU sold ≥ 3 + TOPSIS ≥ 0.30</span>
-<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">TOPSIS ≥ 0.30 ATAU CTR > 0.5% + n ≥ 2</span>
-<span style="color:var(--am)">MONITOR  </span><span class="s-tx">Data masih minim, belum bisa dinilai</span>
-<span style="color:var(--rd)">DROP     </span><span class="s-tx">n ≥ 3, views &lt; 2000, CTR = 0, no sales</span>
+<span style="color:var(--gr)">WINNING  </span><span class="s-tx">sold ≥ 4 OR (sold ≥ 2 + CR ≥ 0.5%) OR (n ≥ 3 + sc ≥ 0.4 + sold ≥ 2) OR TOPSIS ≥ 0.60</span>
+<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">sold ≥ 1 OR sc > 0 OR TOPSIS ≥ 0.25 OR (CTR > 0.5% + n ≥ 2)</span>
+<span style="color:var(--am)">MONITOR  </span><span class="s-tx">Data minim, belum memenuhi kriteria lain</span>
+<span style="color:var(--rd)">DROP     </span><span class="s-tx">n ≥ 3, views &lt; 2000, CTR = 0, CTOR = 0, no sales</span>
 
 <span class="s-hd">Anomaly Detection (otomatis):</span>
 <span class="s-tx">⚡ Views spike + CTOR rendah + 1× upload → GMV Max signal
