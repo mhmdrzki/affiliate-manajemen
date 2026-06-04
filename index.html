@@ -342,12 +342,15 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
         <div class="fg"><label class="fl">Harga (Rp)</label><input type="number" class="fi" id="qp-h"></div>
         <div class="fg"><label class="fl">Komisi/unit (Rp)</label><input type="number" class="fi" id="qp-k"></div>
       </div>
-      <div class="fr2">
+      <div class="fr3">
         <div class="fg"><label class="fl">Kategori</label>
           <select class="fi" id="qp-cat"></select>
         </div>
         <div class="fg"><label class="fl">Seller GMV Max</label>
           <select class="fi" id="qp-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>
+        </div>
+        <div class="fg"><label class="fl">Status Stok</label>
+          <select class="fi" id="qp-stok"><option value="0" selected>Tersedia</option><option value="1">Stok Habis</option></select>
         </div>
       </div>
       <div class="fg"><label class="fl">Label Prestasi</label><input type="text" class="fi" id="qp-l" placeholder="ex: Top selling #4"></div>
@@ -502,12 +505,15 @@ Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
       <div class="fg"><label class="fl">Harga (Rp)</label><input type="number" class="fi" id="add-h"></div>
       <div class="fg"><label class="fl">Komisi/unit (Rp)</label><input type="number" class="fi" id="add-k"></div>
     </div>
-    <div class="fr2">
+    <div class="fr3">
       <div class="fg"><label class="fl">Kategori</label>
         <select class="fi" id="add-cat"></select>
       </div>
       <div class="fg"><label class="fl">GMV Max Seller</label>
         <select class="fi" id="add-g"><option value="0">Tidak diketahui</option><option value="1">Aktif</option></select>
+      </div>
+      <div class="fg"><label class="fl">Status Stok</label>
+        <select class="fi" id="add-stok"><option value="0" selected>Tersedia</option><option value="1">Stok Habis</option></select>
       </div>
     </div>
     <div class="fg"><label class="fl">Label Prestasi</label><input type="text" class="fi" id="add-l" placeholder="-"></div>

@@ -21,6 +21,7 @@ function renderPList(elId,ps){
   el.innerHTML=ps.map((p,i)=>{
     const badges = [];
     badges.push(bH(p.klasifikasi));
+    if (p.stokHabis) badges.push(`<span class="badge bd-c" style="background:var(--rd);color:white;font-weight:bold">STOK HABIS</span>`);
     if (p.kategori) badges.push(`<span class="badge bp">${p.kategori}</span>`);
     if (p.gmvAktif) badges.push('<span class="gdot on"></span>');
     
@@ -30,7 +31,7 @@ function renderPList(elId,ps){
     const subtitle = subtitleParts.join(' · ');
 
     return `
-    <div class="prod-card">
+    <div class="prod-card" style="opacity: ${p.stokHabis ? 0.75 : 1}">
       <div class="prod-card-hdr">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
@@ -76,10 +77,23 @@ function renderPList(elId,ps){
       </div>
       <div style="display:flex;gap:4px;margin-top:8px">
         <button class="btn btn-g btn-xs" onclick="editProd(${S.products.indexOf(p)})">✎ Edit</button>
+        <button class="btn btn-xs ${p.stokHabis ? 'btn-s' : 'btn-d'}" onclick="toggleStok(${S.products.indexOf(p)})">
+          ${p.stokHabis ? '✓ Tersedia' : '✕ Set Habis'}
+        </button>
         <button class="btn btn-d btn-xs" onclick="delProd(${S.products.indexOf(p)})">✕ Hapus</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function toggleStok(pi) {
+  const p = S.products[pi];
+  if (!p) return;
+  p.stokHabis = !p.stokHabis;
+  save();
+  refreshScores();
+  renderProduk();
+  toast(p.nama.substring(0, 20) + (p.stokHabis ? ' ditandai Habis' : ' ditandai Tersedia'));
 }
 
 function delProd(i){if(confirm('Hapus?')){S.products.splice(i,1);refreshScores();renderProduk();toast('Dihapus');}}
@@ -167,6 +181,7 @@ function editProd(pi){
   document.getElementById('add-k').value=p.komisi||'';
   renderCatOptions('add-cat', p.kategori || 'Umum');
   document.getElementById('add-g').value=p.gmvAktif?'1':'0';
+  document.getElementById('add-stok').value=p.stokHabis?'1':'0';
   document.getElementById('add-l').value=p.labelPrestasi||'-';
   document.getElementById('modal-add').dataset.editIdx=pi;
   openModal('modal-add');
@@ -177,15 +192,18 @@ function editProd(pi){
 // ============================================================
 function quickAddProd(){
   const n=document.getElementById('qp-nama').value.trim();if(!n){toast('Nama wajib');return;}
-  S.products.push({id:'p'+Date.now(),nama:n,jenis:document.getElementById('qp-jenis').value.trim()||'',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
+  const stokVal = document.getElementById('qp-stok')?.value === '1';
+  S.products.push({id:'p'+Date.now(),nama:n,jenis:document.getElementById('qp-jenis').value.trim()||'',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',stokHabis:stokVal,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   refreshScores();save();toast('Produk ditambahkan');
   ['qp-nama','qp-jenis','qp-h','qp-k','qp-l'].forEach(id=>document.getElementById(id).value='');
+  if(document.getElementById('qp-stok')) document.getElementById('qp-stok').value='0';
 }
 
 function saveNewProd(){
   const n=document.getElementById('add-nama').value.trim();if(!n){toast('Nama wajib');return;}
   const editIdx=document.getElementById('modal-add').dataset.editIdx;
-  const prodData={nama:n,jenis:document.getElementById('add-jenis').value.trim()||'',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1'};
+  const stokVal = document.getElementById('add-stok')?.value === '1';
+  const prodData={nama:n,jenis:document.getElementById('add-jenis').value.trim()||'',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1',stokHabis:stokVal};
   if(editIdx!==undefined&&editIdx!==''){
     Object.assign(S.products[parseInt(editIdx)],prodData);
     delete document.getElementById('modal-add').dataset.editIdx;
@@ -194,6 +212,7 @@ function saveNewProd(){
   }
   refreshScores();save();closeModal('modal-add');renderProduk();toast('Disimpan');
   ['add-nama','add-jenis','add-h','add-k','add-l'].forEach(id=>document.getElementById(id).value='');
+  if(document.getElementById('add-stok')) document.getElementById('add-stok').value='0';
 }
 
 // ============================================================

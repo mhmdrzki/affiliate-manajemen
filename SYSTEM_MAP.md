@@ -100,3 +100,4 @@ Semua risiko teridentifikasi dari versi sebelumnya telah ditangani:
 - ✅ **Error Hapus Riwayat Jadwal** diselesaikan dengan event delegation pada DOM wrap riwayat jadwal.
 - ✅ **Sinkronisasi Drive Lintas Perangkat** ditangani dengan validasi token dan `gdInitOnLoad()` auto-load saat aplikasi dibuka.
 - ✅ **Ketidakakuratan Penjadwalan Berbasis Hari & Komisi** diselesaikan di v2.2 dengan menghapus komisi/harga dari bobot penjadwalan, menghapus dynamic day multiplier, serta beralih ke quota-based proportion + round-robin rotation.
+- ✅ **Penanganan Stok Produk Kosong** diselesaikan di v2.2 dengan menambahkan flag `stokHabis` pada master produk. Produk kosong otomatis dikecualikan dari proses generate jadwal otomatis, namun tetap dapat dipantau di master list dan dipilih secara manual jika diinginkan (dengan badge penanda `HABIS` merah di list pilihan).
