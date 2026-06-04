@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Jadwal Konten (Render, Affinity-Based Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT)
+Tujuan: Modul Jadwal Konten (Render, Quota-Based Round-Robin Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT)
 Caller: 04-nav.js, 08-views.js (Init), UI Events
 Dependensi: S (02-state); PATS, PRIME_SLOTS, MID_SLOTS, bH (03-scoring); fmt (05-dashboard); openModal, closeModal (04-nav); toast (02-state)
-Main Functions: genSched, pickWithCooldown, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory
+Main Functions: genSched, allocateQuotas, roundRobinPick, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory
 Side Effects: LocalStorage write (via save()), File Download I/O
 */
 
@@ -64,25 +64,45 @@ function buildSlotScript(prod,hIdx,pfIdx,ctaIdx,descIdx){
   return `<span class="sh">[HOOK]</span>\n${hook}\n\n<span class="sh">[ISI]</span>\n${desc}\n\n<span class="sh">[PROOF]</span>\n${proof}\n\n<span class="sh">[CTA]</span>\n${cta}`;
 }
 
-function computeWeights(pool) {
-  return pool.map(p => {
-    const score = p.benchScore || 0;
-    const komisi = p.komisi || 0;
-    const weight = (score / 100) * (1 + Math.log10(komisi + 1));
-    return { p, weight };
-  });
+/**
+ * Hitung kuota slot per tier berdasarkan total slot dan porsi winning.
+ * Returns: { win: N, pot: N, test: N }
+ */
+function allocateQuotas(totalSlots, winPct) {
+  const winSlots = Math.max(1, Math.round(totalSlots * winPct / 100));
+  const remaining = totalSlots - winSlots;
+  const potSlots = Math.max(0, Math.round(remaining * 0.5));
+  const testSlots = Math.max(0, remaining - potSlots);
+  return { win: winSlots, pot: potSlots, test: testSlots };
 }
 
-function weightedPick(poolWithWeights) {
-  if (!poolWithWeights.length) return null;
-  const totalW = poolWithWeights.reduce((s, x) => s + x.weight, 0);
-  if (totalW <= 0) return poolWithWeights[Math.floor(Math.random() * poolWithWeights.length)].p;
-  let r = Math.random() * totalW;
-  for (const item of poolWithWeights) {
-    r -= item.weight;
-    if (r <= 0) return item.p;
+/**
+ * Round-robin pick dari pool produk.
+ * dayIdx: index hari (0-based) untuk rotasi offset.
+ * cursor: objek { idx: N } untuk melacak posisi round-robin dalam pool.
+ * cooldownMap: objek { prodId: lastSlotIdx } untuk anti-spam.
+ * slotIdx: index slot saat ini dalam hari.
+ * Returns: produk atau null.
+ */
+function roundRobinPick(pool, cursor, cooldownMap, slotIdx, cbCooldown) {
+  if (!pool.length) return null;
+  const startIdx = cursor.idx;
+  for (let attempt = 0; attempt < pool.length; attempt++) {
+    const idx = (startIdx + attempt) % pool.length;
+    const p = pool[idx];
+    if (cbCooldown) {
+      const lastIdx = cooldownMap[p.id];
+      if (lastIdx !== undefined && (slotIdx - lastIdx) < 2) continue;
+    }
+    cursor.idx = (idx + 1) % pool.length;
+    cooldownMap[p.id] = slotIdx;
+    return p;
   }
-  return poolWithWeights[poolWithWeights.length - 1].p;
+  // Semua kena cooldown, ambil yang pertama tersedia
+  const p = pool[cursor.idx % pool.length];
+  cursor.idx = (cursor.idx + 1) % pool.length;
+  cooldownMap[p.id] = slotIdx;
+  return p;
 }
 
 let schedData=[];
@@ -90,9 +110,9 @@ function genSched(){
   const start=document.getElementById('sd-date').value;
   const range=parseInt(document.getElementById('sd-range').value);
   const pat=document.getElementById('sd-pat').value;
+  const winPct=parseInt(document.getElementById('sd-win-pct')?.value || '40');
   
   const cbDynJam = document.getElementById('cb-dyn-jam')?.checked ?? false;
-  const cbDynVol = document.getElementById('cb-dyn-vol')?.checked ?? false;
   const cbCooldown = document.getElementById('cb-cooldown')?.checked ?? false;
   
   if(!start){toast('Pilih tanggal');return;}
@@ -102,87 +122,76 @@ function genSched(){
   const slots=PATS[pat]||PATS['6'];
   const winning=S.products.filter(p=>p.klasifikasi==='WINNING').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
   const potential=S.products.filter(p=>p.klasifikasi==='POTENTIAL').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
-  const monitor=S.products.filter(p=>p.klasifikasi==='MONITOR').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
-  const ujiCoba=S.products.filter(p=>p.klasifikasi==='UJI COBA').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
+  const testing=S.products.filter(p=>p.klasifikasi==='UJI COBA'||p.klasifikasi==='MONITOR').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
   const active=S.products.filter(p=>p.klasifikasi!=='DROP').sort((a,b)=>(b.benchScore||0)-(a.benchScore||0));
 
-  const winW = computeWeights(winning);
-  const potW = computeWeights(potential);
-  const monW = computeWeights(monitor);
-  const ujiW = computeWeights(ujiCoba);
+  // Hitung kuota per tier
+  const quotas = allocateQuotas(slots.length, winPct);
 
-  function pickWithCooldown(chains, cooldownMap, slotIdx, dName, hStr) {
-    for (const poolW of chains) {
-      if (!poolW.length) continue;
-      
-      const dynPool = poolW.map(item => {
-        const p = item.p;
-        let affinityBonus = 1.0;
-        if (p.bestDays && p.bestDays.includes(dName)) {
-          affinityBonus += 0.4;
-        }
-        if (p.bestHours && p.bestHours.includes(hStr)) {
-          affinityBonus += 0.6;
-        }
-        return { p, weight: item.weight * affinityBonus };
-      });
-
-      let validPool = dynPool;
-      if (cbCooldown) {
-        validPool = dynPool.filter(item => {
-          const lastIdx = cooldownMap[item.p.id];
-          if (lastIdx === undefined) return true;
-          return (slotIdx - lastIdx) >= 2;
-        });
-      }
-      if (validPool.length > 0) {
-        const picked = weightedPick(validPool);
-        cooldownMap[picked.id] = slotIdx;
-        return picked;
-      }
-    }
-    if (active.length > 0) return active[0];
-    return null;
-  }
+  // Kursor round-robin per tier, persisten lintas hari untuk rotasi
+  const winCursor = { idx: 0 };
+  const potCursor = { idx: 0 };
+  const testCursor = { idx: 0 };
 
   schedData=[];
   for(let d=0;d<range;d++){
     const dt=new Date(start);dt.setDate(dt.getDate()+d);
     const dn=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][dt.getDay()];
     
-    let multiplier = computeDayMultiplier(dn, cbDynVol);
-    let targetSlotCount = Math.max(1, Math.round(slots.length * multiplier));
-    let daySlotsTimes = [...slots];
+    const daySlotsTimes = [...slots].sort();
+
+    // Rotasi offset per hari agar produk bergilir
+    winCursor.idx = (d * quotas.win) % Math.max(winning.length, 1);
+    potCursor.idx = (d * quotas.pot) % Math.max(potential.length, 1);
+    testCursor.idx = (d * quotas.test) % Math.max(testing.length, 1);
+
+    // Klasifikasi slot: jam besar (PRIME) → WINNING, sisanya → TESTING
+    const primeSlots = daySlotsTimes.filter(t => PRIME_SLOTS.includes(t));
+    const midSlots = daySlotsTimes.filter(t => MID_SLOTS.includes(t));
+    const otherSlots = daySlotsTimes.filter(t => !PRIME_SLOTS.includes(t) && !MID_SLOTS.includes(t));
     
-    if (targetSlotCount > slots.length) {
-      const allTimes = PATS['10'];
-      const toAdd = allTimes.filter(t => !daySlotsTimes.includes(t));
-      for(let i=0; i < (targetSlotCount - slots.length) && i < toAdd.length; i++){
-        daySlotsTimes.push(toAdd[i]);
+    // Susun urutan slot: prime dulu (diisi winning), lalu mid, lalu other
+    const orderedSlots = [...primeSlots, ...midSlots, ...otherSlots];
+    // Kembalikan ke urutan waktu untuk tampilan, tapi catat assignment
+    const slotAssignment = new Map();
+    let winCount = 0, potCount = 0;
+
+    orderedSlots.forEach(time => {
+      if (winCount < quotas.win) {
+        slotAssignment.set(time, 'win');
+        winCount++;
+      } else if (potCount < quotas.pot) {
+        slotAssignment.set(time, 'pot');
+        potCount++;
+      } else {
+        slotAssignment.set(time, 'test');
       }
-    } else if (targetSlotCount < slots.length) {
-      daySlotsTimes.sort((a,b) => {
-        const pA = PRIME_SLOTS.includes(a) ? 3 : MID_SLOTS.includes(a) ? 2 : 1;
-        const pB = PRIME_SLOTS.includes(b) ? 3 : MID_SLOTS.includes(b) ? 2 : 1;
-        return pA - pB;
-      });
-      daySlotsTimes = daySlotsTimes.slice(slots.length - targetSlotCount);
-    }
-    daySlotsTimes.sort();
+    });
 
     let cooldownMap = {};
     const daySlots=daySlotsTimes.map((time, si)=>{
+      const assignment = slotAssignment.get(time) || 'test';
       let prod, type, typeLabel;
-      if(PRIME_SLOTS.includes(time)){
-        prod=pickWithCooldown([winW, potW, ujiW, monW], cooldownMap, si, dn, time);
-        type='prime'; typeLabel=`PRIME (${currentSlotSource})`;
-      } else if(MID_SLOTS.includes(time)){
-        prod=pickWithCooldown([potW, winW, ujiW, monW], cooldownMap, si, dn, time);
-        type='pot'; typeLabel=`POTENSIAL (${currentSlotSource})`;
+
+      if (assignment === 'win') {
+        // Prioritas: Winning → Potential → Testing → fallback
+        prod = roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown);
+        type='win'; typeLabel='🟢 WINNING';
+      } else if (assignment === 'pot') {
+        prod = roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown);
+        type='pot'; typeLabel='🔵 POTENTIAL';
       } else {
-        prod=pickWithCooldown([ujiW, monW, potW, winW], cooldownMap, si, dn, time);
-        type='test'; typeLabel=`TEST (${currentSlotSource})`;
+        prod = roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
+            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown);
+        type='test'; typeLabel='🧪 TESTING';
       }
+
+      if (!prod && active.length > 0) prod = active[0];
       
       const cat = prod ? (prod.kategori || 'Umum') : 'Umum';
       const fHooksLen = getFilteredHooks(cat).length || 1;
@@ -191,11 +200,8 @@ function genSched(){
 
       return{time,prod,type,typeLabel,hIdx:Math.floor(Math.random()*fHooksLen),pfIdx:Math.floor(Math.random()*fProofsLen),ctaIdx:Math.floor(Math.random()*fCTAsLen),descIdx:0,sopen:false};
     });
-    
-    let volDiff = daySlotsTimes.length - slots.length;
-    let volLabel = volDiff > 0 ? `📈 +${volDiff} slot (Panen Trafik)` : volDiff < 0 ? `📉 ${volDiff} slot (Hemat Trafik)` : '';
 
-    schedData.push({dt,dn,slots:daySlots,open:true,volLabel,multiplier});
+    schedData.push({dt,dn,slots:daySlots,open:true});
   }
   
   // Save to history
@@ -205,12 +211,11 @@ function genSched(){
     createdAt: new Date().toLocaleString('id'),
     range: range,
     slotPerDay: slots.length,
+    winPct: winPct,
     totalSlots: schedData.reduce((acc, day) => acc + day.slots.length, 0),
     data: JSON.parse(JSON.stringify(schedData.map(day => ({
       dt: day.dt,
       dn: day.dn,
-      volLabel: day.volLabel,
-      multiplier: day.multiplier,
       slots: day.slots.map(s => ({
         time: s.time,
         type: s.type,
@@ -240,7 +245,6 @@ function renderSchedOutput(){
       <div class="sday-hdr" onclick="toggleDay(${di})">
         <div class="sday-name">${day.dn}, ${day.dt.getDate()}/${day.dt.getMonth()+1}/${day.dt.getFullYear()}</div>
         <div class="sday-stat">
-          ${day.volLabel ? `<span style="color:${day.multiplier>1?'var(--gr)':'var(--tx3)'};font-weight:600">${day.volLabel}</span>` : ''}
           <span>${day.slots.length} slot</span>
           <span>${day.slots.filter(s=>s.prod).length} produk</span>
           <span>${day.open?'▾':'▸'}</span>
@@ -256,7 +260,7 @@ function renderSchedOutput(){
           <div class="srow ${sl.sopen?'sopen':''}" id="sr-${di}-${si}">
             <div class="srow-time">
               <div class="srow-tv">${sl.time}</div>
-              <div class="slbl slbl-${sl.type==='prime'?'prime':sl.type==='pot'?'pot':'test'}">${sl.typeLabel || sl.type}</div>
+              <div class="slbl slbl-${sl.type==='win'?'prime':sl.type==='pot'?'pot':'test'}">${sl.typeLabel || sl.type}</div>
             </div>
             <div class="srow-prod">
               ${sl.prod
@@ -359,8 +363,6 @@ function loadSchedHistory(id) {
     return {
       dt: new Date(day.dt),
       dn: day.dn,
-      volLabel: day.volLabel,
-      multiplier: day.multiplier,
       open: true,
       slots: day.slots.map(s => {
         const prod = S.products.find(p => p.id === s.prodId);

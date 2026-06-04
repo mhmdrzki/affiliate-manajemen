@@ -2,7 +2,7 @@
 Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) volume-first + AI-Emulator Metrik (CS/CE/CR/Afinitas), Anomali Deteksi, dan Update Badge
 Caller: 04-nav.js, 05-dashboard.js, 06-produk.js, 08-views.js
 Dependensi: S, save (dari 02-state)
-Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies
+Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies, computeDynamicSlots
 Side Effects: LocalStorage write (via save())
 */
 
@@ -355,31 +355,6 @@ function computeDynamicSlots(useDynamic) {
   }
 }
 
-function computeDayMultiplier(dayName, useAdaptive) {
-  if (!useAdaptive) return 1.0;
-  
-  const pData = analyzePersonalPatterns();
-  let hariData = [];
-  
-  if (pData.hari.length >= 4) {
-    hariData = pData.hari;
-  } else {
-    analyzeBenchPatterns();
-    hariData = BENCH_HARI;
-  }
-  
-  if (!hariData || !hariData.length) return 1.0;
-  
-  const totalViews = hariData.reduce((s, h) => s + (h.av || 0), 0);
-  const globalAvg = totalViews / hariData.length;
-  if (globalAvg <= 0) return 1.0;
-  
-  const dayStats = hariData.find(h => h.h === dayName || h.h.includes(dayName) || dayName.includes(h.h));
-  if (!dayStats) return 1.0;
-  
-  const multiplier = dayStats.av / globalAvg;
-  return Math.max(0.5, Math.min(1.5, multiplier));
-}
 
 // ── MAIN REFRESH ─────────────────────────────────────────────
 function refreshScores(){

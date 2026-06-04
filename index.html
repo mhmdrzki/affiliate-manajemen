@@ -156,12 +156,17 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
           </div>
         </div>
         <div class="fg" style="margin-top:5px; border-top:1px solid var(--bd); padding-top:10px">
-          <div style="font-size:10.5px; font-weight:600; margin-bottom:6px">Opsi Cerdas (Level 2)</div>
+          <div style="font-size:10.5px; font-weight:600; margin-bottom:6px">Pengaturan & Opsi Cerdas</div>
+          <div class="fg" style="margin-bottom:8px">
+            <label class="fl" style="font-size:9.5px">Porsi Winning Product</label>
+            <select class="fi" id="sd-win-pct" style="padding:4px; font-size:10px">
+              <option value="35">35% — Seimbang (Lebih Banyak Testing)</option>
+              <option value="40" selected>40% — Standar (Rekomendasi)</option>
+              <option value="50">50% — Agresif (Fokus Winning)</option>
+            </select>
+          </div>
           <label style="display:flex; gap:6px; align-items:center; font-size:10px; margin-bottom:4px">
             <input type="checkbox" id="cb-dyn-jam" checked> Gunakan jam analitik akun/kompetitor
-          </label>
-          <label style="display:flex; gap:6px; align-items:center; font-size:10px; margin-bottom:4px">
-            <input type="checkbox" id="cb-dyn-vol" checked> Sesuaikan jumlah slot hari sepi/ramai
           </label>
           <label style="display:flex; gap:6px; align-items:center; font-size:10px">
             <input type="checkbox" id="cb-cooldown" checked> Anti-spam (jeda 2 slot untuk produk sama)
