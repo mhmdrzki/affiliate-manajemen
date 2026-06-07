@@ -1,11 +1,11 @@
 <!--
-Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.0.
+Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.3.
 Caller: AI Coding Assistant (Antigravity), Pengembang Manusia (awal sesi).
 Dependensi: js/*.js, css/style.css, index.html.
 Main Functions: Menyediakan peta struktur berkas statis, alur data inti, dan blind spots.
 Side Effects: Tidak ada side effects runtime.
 -->
-# SYSTEM_MAP.md — AffiliateOS Ultra-Compact Navigation Map (v2.0)
+# SYSTEM_MAP.md — AffiliateOS Ultra-Compact Navigation Map (v2.3)
 
 Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di awal sesi untuk menghemat penggunaan token tanpa kehilangan arah pengembangan. Detail implementasi fungsional dan skema database disimpan secara modular di file terkait.
 
@@ -22,8 +22,8 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 ## 2. Core Logic Flow (Function-Level Flowchart)
 
 * **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
-* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria) ➔ `classifyP()` (WINNING: sold>=4 + n>=2, sold>=2+CR>=0.5%, sc>=0.4+sold>=2, ts>=0.60+sold>=1; POTENTIAL: sold>=2, sold>=1+n>=2, ts>=0.40, ctr>=2.0%+n>=2+mv>=1000) ➔ Urutkan `S.products` ➔ `save()`
-* **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` (jika opsi jam analitik dicentang) ➔ Pembagian slot proporsi kuota (`allocateQuotas()`) ➔ Round-Robin produk per tier (`roundRobinPick()`) dengan jeda cooldown ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries)
+* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria) ➔ `classifyP()` (WINNING: sold>=5 + n>=2, sold>=2+CR>=0.5%+n>=2, sc>=0.4+sold>=2, ts>=0.65+sold>=1; POTENTIAL: sold>=2, sold>=1+n>=2, ts>=0.40, ctr>=2.0%+n>=2+mv>=1000) ➔ Urutkan `S.products` ➔ `save()`
+* **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` (jika opsi jam analitik dicentang) ➔ Pembagian slot proporsi kuota (`allocateQuotas()`) ➔ Round-Robin produk per tier (`roundRobinPick()`) dengan jeda cooldown produk + brand ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries) dan sinkronisasi perubahan manual via `syncActiveScheduleToHistory()`
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
 * **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
 
@@ -67,10 +67,10 @@ Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
    * *Fungsi Utama*: `fmt()`, `renderDash()`.
 6. **[js/06-produk.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/06-produk.js)**: Master produk, kategori master dinamis, dan AI deskripsi generator.
    * *Fungsi Utama*: `renderProduk()`, `openGenDesc()`, `doGenDesc()`, `saveNewProd()`, `renderCatOptions()`, `addNewCategory()`, `removeCategory()`, `renderCatManager()`.
-7. **[js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2) berbasis kuota proporsi, hook per-kategori, riwayat jadwal, dan ekspor CSV/TXT.
-   * *Fungsi Utama*: `genSched()`, `allocateQuotas()`, `roundRobinPick()`, `buildSlotScript()`, `renderSchedOutput()`, `loadSchedHistory()`, `deleteSchedHistory()`, `downloadScheduleCSV()`, `downloadScheduleTXT()`, `renderSchedHistory()`.
+7. **[js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2) berbasis kuota proporsi, hook per-kategori, riwayat jadwal, auto-save manual edits, dan ekspor CSV/TXT.
+   * *Fungsi Utama*: `genSched()`, `allocateQuotas()`, `roundRobinPick()`, `buildSlotScript()`, `renderSchedOutput()`, `loadSchedHistory()`, `deleteSchedHistory()`, `downloadScheduleCSV()`, `downloadScheduleTXT()`, `renderSchedHistory()`, `syncActiveScheduleToHistory()`.
 8. **[js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)**: Impor SheetJS, AI standalone generator, hook/proof/cta per-kategori, bank teks, dan app inisialisasi.
-   * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`.
+   * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`, `detectBrand()`.
 
 ---
 

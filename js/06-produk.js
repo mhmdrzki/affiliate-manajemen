@@ -1,5 +1,5 @@
 /*
-Tujuan: Modul Master Produk & Kategori (Render list, metrik AI-Emulator, Deskripsi AI, Quick Add/Save, Kategori Dinamis)
+Tujuan: Modul Master Produk & Kategori (Render list, metrik AI-Emulator, Deskripsi AI, Quick Add/Save, Kategori Dinamis). v2.3: Tambah field brand di manual add/edit & render.
 Caller: 04-nav.js, 08-views.js, UI Events
 Dependensi: S, save, callGemini (02-state); bH, refreshScores (03-scoring); fmt (05-dashboard); toast (02-state); openModal, closeModal (04-nav)
 Main Functions: renderProduk, renderPList, delProd, openAddProd, openGenDesc, doGenDesc, saveNewProd, renderCatOptions, addNewCategory, removeCategory, renderCatManager
@@ -24,6 +24,7 @@ function renderPList(elId,ps){
     const status = p.status || 'aktif';
     if (status === 'habis') badges.push(`<span class="badge bd-c" style="background:var(--rd);color:white;font-weight:bold">STOK HABIS</span>`);
     if (status === 'jeda') badges.push(`<span class="badge bm" style="background:var(--am);color:white;font-weight:bold">JEDA</span>`);
+    if (p.brand) badges.push(`<span class="badge bg-b" style="background:var(--bg3);color:var(--tx2);font-weight:600;border:1px solid var(--bd)">${p.brand}</span>`);
     if (p.kategori) badges.push(`<span class="badge bp">${p.kategori}</span>`);
     if (p.gmvAktif) badges.push('<span class="gdot on"></span>');
     
@@ -189,6 +190,7 @@ function editProd(pi){
   document.getElementById('add-g').value=p.gmvAktif?'1':'0';
   document.getElementById('add-stok').value=p.status||'aktif';
   document.getElementById('add-l').value=p.labelPrestasi||'-';
+  document.getElementById('add-brand').value=p.brand||'';
   document.getElementById('modal-add').dataset.editIdx=pi;
   openModal('modal-add');
 }
@@ -199,9 +201,10 @@ function editProd(pi){
 function quickAddProd(){
   const n=document.getElementById('qp-nama').value.trim();if(!n){toast('Nama wajib');return;}
   const statusVal = document.getElementById('qp-stok')?.value || 'aktif';
-  S.products.push({id:'p'+Date.now(),nama:n,jenis:document.getElementById('qp-jenis').value.trim()||'',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',status:statusVal,stokHabis:(statusVal==='habis'),descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
+  const brandVal = document.getElementById('qp-brand')?.value.trim() || '';
+  S.products.push({id:'p'+Date.now(),nama:n,brand:brandVal,jenis:document.getElementById('qp-jenis').value.trim()||'',harga:parseInt(document.getElementById('qp-h').value)||0,komisi:parseInt(document.getElementById('qp-k').value)||0,kategori:document.getElementById('qp-cat').value,labelPrestasi:document.getElementById('qp-l').value||'-',gmvAktif:document.getElementById('qp-g').value==='1',status:statusVal,stokHabis:(statusVal==='habis'),descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   refreshScores();save();toast('Produk ditambahkan');
-  ['qp-nama','qp-jenis','qp-h','qp-k','qp-l'].forEach(id=>document.getElementById(id).value='');
+  ['qp-nama','qp-jenis','qp-brand','qp-h','qp-k','qp-l'].forEach(id=>document.getElementById(id).value='');
   if(document.getElementById('qp-stok')) document.getElementById('qp-stok').value='aktif';
 }
 
@@ -209,7 +212,8 @@ function saveNewProd(){
   const n=document.getElementById('add-nama').value.trim();if(!n){toast('Nama wajib');return;}
   const editIdx=document.getElementById('modal-add').dataset.editIdx;
   const statusVal = document.getElementById('add-stok')?.value || 'aktif';
-  const prodData={nama:n,jenis:document.getElementById('add-jenis').value.trim()||'',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1',status:statusVal,stokHabis:(statusVal==='habis')};
+  const brandVal = document.getElementById('add-brand')?.value.trim() || '';
+  const prodData={nama:n,brand:brandVal,jenis:document.getElementById('add-jenis').value.trim()||'',harga:parseInt(document.getElementById('add-h').value)||0,komisi:parseInt(document.getElementById('add-k').value)||0,kategori:document.getElementById('add-cat').value,labelPrestasi:document.getElementById('add-l').value||'-',gmvAktif:document.getElementById('add-g').value==='1',status:statusVal,stokHabis:(statusVal==='habis')};
   if(editIdx!==undefined&&editIdx!==''){
     Object.assign(S.products[parseInt(editIdx)],prodData);
     delete document.getElementById('modal-add').dataset.editIdx;
@@ -217,7 +221,7 @@ function saveNewProd(){
     S.products.push({id:'p'+Date.now(),...prodData,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00'});
   }
   refreshScores();save();closeModal('modal-add');renderProduk();toast('Disimpan');
-  ['add-nama','add-jenis','add-h','add-k','add-l'].forEach(id=>document.getElementById(id).value='');
+  ['add-nama','add-jenis','add-brand','add-h','add-k','add-l'].forEach(id=>document.getElementById(id).value='');
   if(document.getElementById('add-stok')) document.getElementById('add-stok').value='aktif';
 }
 

@@ -1,5 +1,5 @@
 /*
-Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) volume-first + AI-Emulator Metrik (CS/CE/CR/Afinitas), Anomali Deteksi, dan Update Badge
+Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) volume-first + AI-Emulator Metrik (CS/CE/CR/Afinitas), Anomali Deteksi, dan Update Badge. v2.3: Perketat threshold WINNING.
 Caller: 04-nav.js, 05-dashboard.js, 06-produk.js, 08-views.js
 Dependensi: S, save (dari 02-state)
 Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies, computeDynamicSlots
@@ -132,10 +132,10 @@ function classifyP(p,mode){
   if(mode==='topsis'){
     const sc = p.salesConsistency||0, ts = p.topsisScore||0, conversionRate = p.conversionRate||0;
     // WINNING (4 Jalur AI-Emulator)
-    if(sold>=4 && n>=2)return 'WINNING'; // 1. Skala Volume (minimal 2 video)
-    if(sold>=2 && conversionRate>=0.5)return 'WINNING'; // 2. Efisiensi Konversi
+    if(sold>=5 && n>=2)return 'WINNING'; // 1. Skala Volume (minimal 2 video)
+    if(sold>=2 && conversionRate>=0.5 && n>=2)return 'WINNING'; // 2. Efisiensi Konversi + min 2 video
     if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 3. Konsistensi (Rutin)
-    if(ts>=0.60 && sold>=1)return 'WINNING'; // 4. TOPSIS Score Tinggi + minimal ada penjualan
+    if(ts>=0.65 && sold>=1)return 'WINNING'; // 4. TOPSIS Score Tinggi + minimal ada penjualan
     
     // DROP
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';

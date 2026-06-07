@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi
+Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi. v2.3: Auto-detect brand saat import.
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
-Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots, recalcScores
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots, recalcScores, detectBrand
 Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
@@ -307,6 +307,19 @@ function sumSnapshots(snapshots) {
   }), { gmv: 0, itemsSold: 0, views: 0 });
 }
 
+function detectBrand(name) {
+  if (!name) return '';
+  const words = name.trim().split(/\s+/);
+  if (!words.length) return '';
+  const generic = ['new', '3pcs', '2pcs', '1pcs', 'promo', 'kaos', 'baju', 'celana', 'ready', 'super', 'original', 'ori', 'murah', 'premium', 'diskon', 'grosir', 'hot', 'best', 'top', 'sale', 'viral', 'terlaris', 'free', 'ongkir'];
+  let brand = words[0];
+  if (generic.includes(brand.toLowerCase()) && words.length > 1) {
+    brand = words[1];
+  }
+  brand = brand.replace(/[^a-zA-Z0-9]/g, '');
+  return brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '';
+}
+
 function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
@@ -378,7 +391,7 @@ function importRows(rows,filename){
     let prod=S.products.find(p=>produk.toLowerCase()===p.nama.toLowerCase());
     if(!prod){
       const cat=String(fk(row,'kategori_produk','kategoriproduk','kategori','category')||'').trim();
-      prod={id:'p'+Date.now()+Math.random(),nama:produk,jenis:'',harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
+      prod={id:'p'+Date.now()+Math.random(),nama:produk,brand:detectBrand(produk),jenis:'',harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
       S.products.push(prod);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;

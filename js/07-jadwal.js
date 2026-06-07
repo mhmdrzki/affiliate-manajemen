@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Jadwal Konten (Render, Quota-Based Round-Robin Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT)
+Tujuan: Modul Jadwal Konten (Render, Quota-Based Round-Robin Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT). v2.3: Auto-save perubahan manual & Brand Cooldown.
 Caller: 04-nav.js, 08-views.js (Init), UI Events
 Dependensi: S (02-state); PATS, PRIME_SLOTS, MID_SLOTS, bH (03-scoring); fmt (05-dashboard); openModal, closeModal (04-nav); toast (02-state)
-Main Functions: genSched, allocateQuotas, roundRobinPick, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory
+Main Functions: genSched, allocateQuotas, roundRobinPick, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory, syncActiveScheduleToHistory
 Side Effects: LocalStorage write (via save()), File Download I/O
 */
 
@@ -84,28 +84,64 @@ function allocateQuotas(totalSlots, winPct) {
  * slotIdx: index slot saat ini dalam hari.
  * Returns: produk atau null.
  */
-function roundRobinPick(pool, cursor, cooldownMap, slotIdx, cbCooldown) {
+function roundRobinPick(pool, cursor, cooldownMap, slotIdx, cbCooldown, brandCooldownMap) {
   if (!pool.length) return null;
   const startIdx = cursor.idx;
   for (let attempt = 0; attempt < pool.length; attempt++) {
     const idx = (startIdx + attempt) % pool.length;
     const p = pool[idx];
+    const brand = (p.brand || p.kategori || '').toLowerCase();
     if (cbCooldown) {
+      // Product cooldown
       const lastIdx = cooldownMap[p.id];
       if (lastIdx !== undefined && (slotIdx - lastIdx) < 2) continue;
+      // Brand cooldown — hindari brand sama di slot berturutan
+      if (brand && brandCooldownMap) {
+        const lastBrandIdx = brandCooldownMap[brand];
+        if (lastBrandIdx !== undefined && (slotIdx - lastBrandIdx) < 1) continue;
+      }
     }
     cursor.idx = (idx + 1) % pool.length;
     cooldownMap[p.id] = slotIdx;
+    if (brand && brandCooldownMap) brandCooldownMap[brand] = slotIdx;
     return p;
   }
   // Semua kena cooldown, ambil yang pertama tersedia
   const p = pool[cursor.idx % pool.length];
   cursor.idx = (cursor.idx + 1) % pool.length;
   cooldownMap[p.id] = slotIdx;
+  const brand = (p.brand || p.kategori || '').toLowerCase();
+  if (brand && brandCooldownMap) brandCooldownMap[brand] = slotIdx;
   return p;
 }
 
 let schedData=[];
+let activeSchedHistoryId=null;
+
+function syncActiveScheduleToHistory() {
+  if (!schedData.length || !S.scheduleHistory || !S.scheduleHistory.length) return;
+  const targetId = activeSchedHistoryId || (S.scheduleHistory[0] ? S.scheduleHistory[0].id : null);
+  if (!targetId) return;
+  const entry = S.scheduleHistory.find(h => h.id === targetId);
+  if (!entry) return;
+  entry.data = schedData.map(day => ({
+    dt: day.dt,
+    dn: day.dn,
+    slots: day.slots.map(s => ({
+      time: s.time,
+      type: s.type,
+      typeLabel: s.typeLabel,
+      hIdx: s.hIdx,
+      pfIdx: s.pfIdx,
+      ctaIdx: s.ctaIdx,
+      descIdx: s.descIdx,
+      prodId: s.prod ? s.prod.id : null
+    }))
+  }));
+  entry.totalSlots = schedData.reduce((acc, day) => acc + day.slots.length, 0);
+  save();
+  renderSchedHistory();
+}
 function genSched(){
   const start=document.getElementById('sd-date').value;
   const range=parseInt(document.getElementById('sd-range').value);
@@ -164,25 +200,26 @@ function genSched(){
     });
 
     let cooldownMap = {};
+    let brandCooldownMap = {};
     const daySlots=daySlotsTimes.map((time, si)=>{
       const assignment = slotAssignment.get(time) || 'test';
       let prod, type, typeLabel;
 
       if (assignment === 'win') {
         // Prioritas: Winning → Potential → Testing → fallback
-        prod = roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown);
+        prod = roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown, brandCooldownMap);
         type='win'; typeLabel='🟢 WINNING';
       } else if (assignment === 'pot') {
-        prod = roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown);
+        prod = roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown, brandCooldownMap);
         type='pot'; typeLabel='🔵 POTENTIAL';
       } else {
-        prod = roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown)
-            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown);
+        prod = roundRobinPick(testing, testCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(potential, potCursor, cooldownMap, si, cbCooldown, brandCooldownMap)
+            || roundRobinPick(winning, winCursor, cooldownMap, si, cbCooldown, brandCooldownMap);
         type='test'; typeLabel='🧪 TESTING';
       }
 
@@ -226,6 +263,7 @@ function genSched(){
   if (!S.scheduleHistory) S.scheduleHistory = [];
   S.scheduleHistory.unshift(entry);
   if (S.scheduleHistory.length > 20) S.scheduleHistory.pop();
+  activeSchedHistoryId = entry.id;
 
   save();
   renderSchedOutput();
@@ -303,6 +341,7 @@ function updSlot(di,si,key,val){
   const el=document.getElementById(`sb-${di}-${si}`);
   const sl=schedData[di].slots[si];
   if(el)el.innerHTML=buildSlotScript(sl.prod,sl.hIdx,sl.pfIdx,sl.ctaIdx,sl.descIdx);
+  syncActiveScheduleToHistory();
 }
 function rotateSlot(di,si){
   const sl=schedData[di].slots[si];
@@ -312,6 +351,7 @@ function rotateSlot(di,si){
   sl.ctaIdx=(sl.ctaIdx+1)%Math.max(getFilteredCTAs(cat).length,1);
   if(sl.prod&&(sl.prod.descVariants||[]).length>1) sl.descIdx=(sl.descIdx+1)%sl.prod.descVariants.length;
   renderSchedOutput();toast('Rotasi hook/proof/CTA');
+  syncActiveScheduleToHistory();
 }
 function copySlot(di,si){
   const el=document.getElementById(`sb-${di}-${si}`);
@@ -346,8 +386,14 @@ function doAssign(pid){
     sl.descIdx = 0;
   }
   closeModal('modal-assign');renderSchedOutput();toast('Di-assign');
+  syncActiveScheduleToHistory();
 }
-function doAssignEmpty(){schedData[assignTarget.di].slots[assignTarget.si].prod=null;closeModal('modal-assign');renderSchedOutput();}
+function doAssignEmpty(){
+  schedData[assignTarget.di].slots[assignTarget.si].prod=null;
+  closeModal('modal-assign');
+  renderSchedOutput();
+  syncActiveScheduleToHistory();
+}
 
 // ============================================================
 // HISTORY & DOWNLOAD HELPERS
@@ -377,6 +423,7 @@ function loadSchedHistory(id) {
       })
     };
   });
+  activeSchedHistoryId = id;
   renderSchedOutput();
   toast('Jadwal loaded dari riwayat');
 }
@@ -386,6 +433,11 @@ function deleteSchedHistory(id) {
   if (!S.scheduleHistory) { S.scheduleHistory = []; save(); renderSchedHistory(); return; }
   const before = S.scheduleHistory.length;
   S.scheduleHistory = S.scheduleHistory.filter(h => h.id !== id);
+  if (activeSchedHistoryId === id) {
+    activeSchedHistoryId = null;
+    schedData = [];
+    renderSchedOutput();
+  }
   save();
   renderSchedHistory();
   toast(S.scheduleHistory.length < before ? 'Riwayat dihapus' : 'Entry tidak ditemukan');

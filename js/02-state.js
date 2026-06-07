@@ -28,6 +28,7 @@ Objek Master Produk (S.products[i]):
 prod = {
   id: String,              // ID Unik ('p' + Timestamp + Random)
   nama: String,            // Nama lengkap produk dari etalase TikTok Shop
+  brand: String,           // Brand / Merk produk (kustom / auto-detect)
   jenis: String,           // Tipe pendek produk (ex: "Celana Jogger")
   harga: Number,           // Harga produk dalam Rupiah
   komisi: Number,          // Komisi afiliasi per unit terjual
