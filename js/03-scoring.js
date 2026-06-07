@@ -132,19 +132,19 @@ function classifyP(p,mode){
   if(mode==='topsis'){
     const sc = p.salesConsistency||0, ts = p.topsisScore||0, conversionRate = p.conversionRate||0;
     // WINNING (4 Jalur AI-Emulator)
-    if(sold>=4)return 'WINNING'; // 1. Skala Volume
+    if(sold>=4 && n>=2)return 'WINNING'; // 1. Skala Volume (minimal 2 video)
     if(sold>=2 && conversionRate>=0.5)return 'WINNING'; // 2. Efisiensi Konversi
     if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 3. Konsistensi (Rutin)
-    if(ts>=0.60)return 'WINNING'; // 4. TOPSIS Score Tinggi
+    if(ts>=0.60 && sold>=1)return 'WINNING'; // 4. TOPSIS Score Tinggi + minimal ada penjualan
     
     // DROP
     if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
     
-    // POTENTIAL
-    if(sold>=1)return 'POTENTIAL';
-    if(sc>0)return 'POTENTIAL';
-    if(ts>=0.25)return 'POTENTIAL';
-    if(ctr>0.5&&n>=2)return 'POTENTIAL';
+    // POTENTIAL (diperketat)
+    if(sold>=2)return 'POTENTIAL'; // 1. Minimal 2 penjualan
+    if(sold>=1 && n>=2)return 'POTENTIAL'; // 2. 1 penjualan tapi sudah dipush 2+ video
+    if(ts>=0.40)return 'POTENTIAL'; // 3. TOPSIS Score cukup tinggi
+    if(ctr>=2.0 && n>=2 && mv>=1000)return 'POTENTIAL'; // 4. Engagement kuat + views memadai
     return 'MONITOR';
   }
   // benchmark (frequency-based)

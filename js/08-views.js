@@ -2,7 +2,7 @@
 Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
-Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots, recalcScores
 Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
@@ -678,6 +678,14 @@ if (typeof renderCatOptions === 'function') renderCatOptions('qp-cat', 'Umum');
 // Cek ketersediaan library CDN kritis
 if (typeof XLSX === 'undefined') {
   toast('⚠️ SheetJS gagal dimuat — fitur import membutuhkan koneksi internet');
+}
+
+function recalcScores() {
+  refreshScores();
+  renderDash();
+  renderProduk();
+  updateBadges();
+  toast('✅ Score berhasil dihitung ulang');
 }
 
 // ============================================================

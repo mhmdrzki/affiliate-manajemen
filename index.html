@@ -124,7 +124,8 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb" onclick="tabSw(this,'tp-u')">🔵 Uji Coba</button>
     <button class="tb" onclick="tabSw(this,'tp-m')">🟡 Monitor</button>
     <button class="tb" onclick="tabSw(this,'tp-d')">🔴 Drop</button>
-    <button class="btn btn-p btn-sm" style="margin-left:auto;align-self:center" onclick="openAddProd()">+ Tambah</button>
+    <button class="btn btn-am btn-sm" style="margin-left:auto;align-self:center" onclick="recalcScores()">🔄 Hitung Ulang Score</button>
+    <button class="btn btn-p btn-sm" style="margin-left:6px;align-self:center" onclick="openAddProd()">+ Tambah</button>
   </div>
   <div style="margin-bottom:12px; display:flex; gap:8px">
     <input type="text" class="fi" id="search-master" placeholder="🔍 Cari nama produk, jenis, atau label..." oninput="filterMaster()" style="flex:1">
@@ -371,7 +372,8 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
   </div>
   <div class="card">
     <div class="card-t">Riwayat Import <span class="ctb" id="imp-hist-ct">0</span>
-      <button class="btn btn-d btn-xs" style="margin-left:auto" onclick="clearAll()">🗑 Reset Data</button>
+      <button class="btn btn-am btn-xs" style="margin-left:auto" onclick="recalcScores()">🔄 Hitung Ulang Score</button>
+      <button class="btn btn-d btn-xs" style="margin-left:6px" onclick="clearAll()">🗑 Reset Data</button>
     </div>
     <div id="imp-hist"></div>
   </div>
@@ -489,10 +491,10 @@ Steps: normalisasi → bobot → jarak ke ideal+ dan ideal−
 Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
 
 <span class="s-hd">Klasifikasi (TOPSIS mode):</span>
-<span style="color:var(--gr)">WINNING  </span><span class="s-tx">sold ≥ 4 OR (sold ≥ 2 + CR ≥ 0.5%) OR (n ≥ 3 + sc ≥ 0.4 + sold ≥ 2) OR TOPSIS ≥ 0.60</span>
-<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">sold ≥ 1 OR sc > 0 OR TOPSIS ≥ 0.25 OR (CTR > 0.5% + n ≥ 2)</span>
+<span style="color:var(--gr)">WINNING  </span><span class="s-tx">(sold ≥ 4 AND n ≥ 2) OR (sold ≥ 2 + CR ≥ 0.5%) OR (n ≥ 3 + sc ≥ 0.4 + sold ≥ 2) OR (TOPSIS ≥ 0.60 AND sold ≥ 1)</span>
+<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">sold ≥ 2 OR (sold ≥ 1 AND n ≥ 2) OR TOPSIS ≥ 0.40 OR (CTR ≥ 2.0% + n ≥ 2 + maxViews ≥ 1000)</span>
 <span style="color:var(--am)">MONITOR  </span><span class="s-tx">Data minim, belum memenuhi kriteria lain</span>
-<span style="color:var(--rd)">DROP     </span><span class="s-tx">n ≥ 3, views &lt; 2000, CTR = 0, CTOR = 0, no sales</span>
+<span style="color:var(--rd)">DROP     </span><span class="s-tx">n ≥ 3, views < 2000, CTR = 0, CTOR = 0, no sales</span>
 
 <span class="s-hd">Anomaly Detection (otomatis):</span>
 <span class="s-tx">⚡ Views spike + CTOR rendah + 1× upload → GMV Max signal

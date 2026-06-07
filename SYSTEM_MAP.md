@@ -21,8 +21,8 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 
 ## 2. Core Logic Flow (Function-Level Flowchart)
 
-* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` (baca format 12 kolom baru dengan Period Snapshots merge, `nama_produk` wajib, `kategori_produk` opsional, ignore `sumber_data`) / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
-* **Scoring & Klasifikasi**: `refreshScores()` ➔ `recomputeProductStats()` (Agregasi metrik: salesConsistency, conversionEfficiency, conversionRate, bestDays/Hours; views decayed, sales/GMV tanpa decay) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria: CTOR 30%, Sold 35%, CTR 20%, GMV 0%, nVideo 10%, conversionRate 5%) / `scoreBenchmark()` ➔ `classifyP()` (WINNING volume-first: sold >= 4, sold >= 2 + CR >= 0.5%, sc >= 0.4 + sold >= 2, ts >= 0.60) ➔ Urutkan `S.products` ➔ `save()`
+* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
+* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria) ➔ `classifyP()` (WINNING: sold>=4 + n>=2, sold>=2+CR>=0.5%, sc>=0.4+sold>=2, ts>=0.60+sold>=1; POTENTIAL: sold>=2, sold>=1+n>=2, ts>=0.40, ctr>=2.0%+n>=2+mv>=1000) ➔ Urutkan `S.products` ➔ `save()`
 * **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` (jika opsi jam analitik dicentang) ➔ Pembagian slot proporsi kuota (`allocateQuotas()`) ➔ Round-Robin produk per tier (`roundRobinPick()`) dengan jeda cooldown ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries)
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
 * **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
@@ -70,7 +70,7 @@ Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
 7. **[js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2) berbasis kuota proporsi, hook per-kategori, riwayat jadwal, dan ekspor CSV/TXT.
    * *Fungsi Utama*: `genSched()`, `allocateQuotas()`, `roundRobinPick()`, `buildSlotScript()`, `renderSchedOutput()`, `loadSchedHistory()`, `deleteSchedHistory()`, `downloadScheduleCSV()`, `downloadScheduleTXT()`, `renderSchedHistory()`.
 8. **[js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)**: Impor SheetJS, AI standalone generator, hook/proof/cta per-kategori, bank teks, dan app inisialisasi.
-   * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`.
+   * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`.
 
 ---
 
