@@ -29,7 +29,7 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <div class="brand-logo">A</div>
     <div class="brand-text">
       <div class="brand-name">Affiliate<em>OS</em></div>
-      <div class="brand-sub">TikTok Shop &middot; v2.3</div>
+      <div class="brand-sub">TikTok Shop &middot; v2.4</div>
     </div>
   </div>
   <nav>
@@ -207,6 +207,22 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
     <button class="tb" onclick="tabSw(this,'bk-proof')">Proof Bank</button>
     <button class="tb" onclick="tabSw(this,'bk-cta')">CTA Bank</button>
   </div>
+
+  <!-- Template Updates Control Panel (v2.4) -->
+  <div class="card" style="margin-bottom:16px; padding:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px">
+    <div style="font-size:11px; color:var(--tx2)">
+      💡 <strong>Pembaruan Template (v2.4)</strong>: Anda dapat memperbarui bank teks dengan template referensi berkualitas tinggi terbaru.
+    </div>
+    <div style="display:flex; gap:8px">
+      <button class="btn btn-s" onclick="mergeDefaultTemplates()" style="background:var(--bg3); color:var(--tx1); border:1px solid var(--bd); padding:4px 10px; font-size:11px">
+        📥 Gabungkan Template Baru
+      </button>
+      <button class="btn btn-s" onclick="resetTemplatesToDefault()" style="background:var(--re); color:#fff; padding:4px 10px; font-size:11px; border:none">
+        ⚠️ Reset ke Default
+      </button>
+    </div>
+  </div>
+
 
   <!-- HOOK -->
   <div class="tp act" id="bk-hook">

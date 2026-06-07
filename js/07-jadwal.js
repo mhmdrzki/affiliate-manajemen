@@ -1,5 +1,5 @@
 /*
-Tujuan: Modul Jadwal Konten (Render, Quota-Based Round-Robin Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT). v2.3: Auto-save perubahan manual & Brand Cooldown.
+Tujuan: Modul Jadwal Konten (Render, Quota-Based Round-Robin Generator, Pengacak Hook/Proof/CTA per Kategori, Riwayat, Unduh CSV/TXT). v2.4: Perbaikan placeholder [PRODUK] & bank template terintegrasi.
 Caller: 04-nav.js, 08-views.js (Init), UI Events
 Dependensi: S (02-state); PATS, PRIME_SLOTS, MID_SLOTS, bH (03-scoring); fmt (05-dashboard); openModal, closeModal (04-nav); toast (02-state)
 Main Functions: genSched, allocateQuotas, roundRobinPick, buildSlotScript, renderSchedOutput, loadSchedHistory, deleteSchedHistory, downloadScheduleCSV, downloadScheduleTXT, renderSchedHistory, syncActiveScheduleToHistory
@@ -57,7 +57,8 @@ function buildSlotScript(prod,hIdx,pfIdx,ctaIdx,descIdx){
   const fHooks = getFilteredHooks(cat);
   const fProofs = getFilteredProofs(cat);
   const fCTAs = getFilteredCTAs(cat);
-  const hook=(fHooks[hIdx] || fHooks[0])?.txt.replace('[PRODUK]',(prod.jenis||prod.nama.split(' ').slice(0,3).join(' ')))||getRandHook(cat);
+  const prodLabel = prod.jenis || (prod.kategori && prod.kategori !== 'Umum' ? prod.kategori : '') || prod.nama.split(' ').slice(0,3).join(' ');
+  const hook = (fHooks[hIdx] || fHooks[0])?.txt.replace(/\[PRODUK\]/g, prodLabel) || getRandHook(cat);
   const proof=(fProofs[pfIdx] || fProofs[0])?.txt||getRandProof(cat);
   const cta=(fCTAs[ctaIdx] || fCTAs[0])?.txt||getRandCTA(cat);
   const desc=(prod.descVariants||[])[descIdx]||`[Belum ada isi konten. Buka Master Produk → ${prod.jenis||'produk ini'} → Generate Isi Konten]`;
@@ -463,7 +464,8 @@ function downloadScheduleCSV(id) {
         const fHooks = getFilteredHooks(cat);
         const fProofs = getFilteredProofs(cat);
         const fCTAs = getFilteredCTAs(cat);
-        hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace('[PRODUK]', (prod.jenis||prod.nama.split(' ').slice(0,3).join(' '))) || '';
+        const prodLabel = prod.jenis || (prod.kategori && prod.kategori !== 'Umum' ? prod.kategori : '') || prod.nama.split(' ').slice(0,3).join(' ');
+        hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace(/\[PRODUK\]/g, prodLabel) || '';
         proof = (fProofs[s.pfIdx] || fProofs[0])?.txt || '';
         cta = (fCTAs[s.ctaIdx] || fCTAs[0])?.txt || '';
         desc = (prod.descVariants||[])[s.descIdx] || '';
@@ -510,7 +512,8 @@ function downloadScheduleTXT(id) {
         const fHooks = getFilteredHooks(cat);
         const fProofs = getFilteredProofs(cat);
         const fCTAs = getFilteredCTAs(cat);
-        const hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace('[PRODUK]', (prod.jenis||prod.nama.split(' ').slice(0,3).join(' '))) || '';
+        const prodLabel = prod.jenis || (prod.kategori && prod.kategori !== 'Umum' ? prod.kategori : '') || prod.nama.split(' ').slice(0,3).join(' ');
+        const hook = (fHooks[s.hIdx] || fHooks[0])?.txt.replace(/\[PRODUK\]/g, prodLabel) || '';
         const proof = (fProofs[s.pfIdx] || fProofs[0])?.txt || '';
         const cta = (fCTAs[s.ctaIdx] || fCTAs[0])?.txt || '';
         const desc = (prod.descVariants||[])[s.descIdx] || '[Belum ada isi konten]';

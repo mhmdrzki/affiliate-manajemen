@@ -1,11 +1,11 @@
 <!--
-Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.3.
+Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.4.
 Caller: AI Coding Assistant (Antigravity), Pengembang Manusia (awal sesi).
 Dependensi: js/*.js, css/style.css, index.html.
 Main Functions: Menyediakan peta struktur berkas statis, alur data inti, dan blind spots.
 Side Effects: Tidak ada side effects runtime.
 -->
-# SYSTEM_MAP.md — AffiliateOS Ultra-Compact Navigation Map (v2.3)
+# SYSTEM_MAP.md — AffiliateOS Ultra-Compact Navigation Map (v2.4)
 
 Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di awal sesi untuk menghemat penggunaan token tanpa kehilangan arah pengembangan. Detail implementasi fungsional dan skema database disimpan secara modular di file terkait.
 
@@ -70,7 +70,7 @@ Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
 7. **[js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2) berbasis kuota proporsi, hook per-kategori, riwayat jadwal, auto-save manual edits, dan ekspor CSV/TXT.
    * *Fungsi Utama*: `genSched()`, `allocateQuotas()`, `roundRobinPick()`, `buildSlotScript()`, `renderSchedOutput()`, `loadSchedHistory()`, `deleteSchedHistory()`, `downloadScheduleCSV()`, `downloadScheduleTXT()`, `renderSchedHistory()`, `syncActiveScheduleToHistory()`.
 8. **[js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)**: Impor SheetJS, AI standalone generator, hook/proof/cta per-kategori, bank teks, dan app inisialisasi.
-   * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`, `detectBrand()`.
+    * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`, `detectBrand()`, `detectJenis()`, `mergeDefaultTemplates()`, `resetTemplatesToDefault()`.
 
 ---
 

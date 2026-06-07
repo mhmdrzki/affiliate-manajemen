@@ -1,5 +1,5 @@
 /*
-Tujuan: Data Defaults, State Global S, dan Konfigurasi Gemini API
+Tujuan: Data Defaults, State Global S (v2.4 dengan Bank Template Hook/Proof/CTA yang ditingkatkan), dan Konfigurasi Gemini API
 Caller: index.html, 01-gdrive.js, dan modul lainnya
 Dependensi: gdScheduleSync (dari 01-gdrive)
 Main Functions:
@@ -85,32 +85,51 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 // ============================================================
 const DEF_HOOKS=[
   {id:'h1',txt:'Gue iseng coba [PRODUK] ini — dan sekarang susah balik ke yang lama.',kategori:'Umum'},
-  {id:'h2',txt:'Jujur, gue awalnya ragu. Tapi setelah pakai [PRODUK] ini, pendapat gue berubah.',kategori:'Umum'},
-  {id:'h3',txt:'Kalau lo lagi cari [PRODUK] yang worth it, mungkin ini yang lo cari.',kategori:'Umum'},
-  {id:'h4',txt:'Ribuan orang udah order ini. Gue penasaran, gue coba — ini hasilnya.',kategori:'Umum'},
-  {id:'h5',txt:'Gue nemu [PRODUK] ini dan langsung ngerti kenapa banyak yang repeat order.',kategori:'Umum'},
-  {id:'h6',txt:'[PRODUK] ini yang sekarang gue pakai sehari-hari. Dan gue punya alasannya.',kategori:'Umum'},
-  {id:'h7',txt:'Ini [PRODUK] yang sering orang tanya ke gue — akhirnya gue bahas juga.',kategori:'Umum'},
-  {id:'h8',txt:'Sebelum lo beli [PRODUK] sembarangan, tonton ini dulu.',kategori:'Umum'},
-  {id:'h9',txt:'Gue nggak nyangka [PRODUK] harga segini bisa sekualitas ini.',kategori:'Umum'},
-  {id:'h10',txt:'Kalau lo sering nunda beli [PRODUK] karena banyak pilihan — coba yang ini dulu.',kategori:'Umum'},
+  {id:'h2',txt:'Jujur, gue awalnya ragu. Tapi setelah pakai [PRODUK] ini seminggu, pendapat gue berubah total.',kategori:'Umum'},
+  {id:'h3',txt:'Kalau lo capek buang duit buat [PRODUK] yang zonk, coba tonton dulu 30 detik ini.',kategori:'Umum'},
+  {id:'h4',txt:'Ribuan orang udah order [PRODUK] ini. Gue penasaran — ini hasilnya setelah gue coba sendiri.',kategori:'Umum'},
+  {id:'h5',txt:'Stop scroll. Kalau lo lagi nyari [PRODUK] yang beneran worth it, ini dia.',kategori:'Umum'},
+  {id:'h6',txt:'[PRODUK] ini yang sekarang gue pakai tiap hari. Dan gue kasih tau kenapa.',kategori:'Umum'},
+  {id:'h7',txt:'Kenapa 90% orang salah pilih [PRODUK]? Ini yang harusnya lo perhatiin.',kategori:'Umum'},
+  {id:'h8',txt:'Jangan beli [PRODUK] sembarangan sebelum lo tau ini.',kategori:'Umum'},
+  {id:'h9',txt:'Gue nggak nyangka [PRODUK] harga segini bisa sekualitas ini. Serius.',kategori:'Umum'},
+  {id:'h10',txt:'[PRODUK] ini sering sold out — dan akhirnya gue ngerti kenapa.',kategori:'Umum'},
+  {id:'h11',txt:'3 hal yang wajib lo tau sebelum beli [PRODUK]. Nomor 2 sering diabaikan.',kategori:'Umum'},
+  {id:'h12',txt:'Gue challenge diri sendiri pakai [PRODUK] ini selama 7 hari. Ini yang terjadi.',kategori:'Umum'},
+  {id:'h13',txt:'Dulu gue selalu kecewa sama [PRODUK]. Sampai akhirnya nemu yang ini.',kategori:'Umum'},
+  {id:'h14',txt:'Kalau lo tipe yang riset dulu sebelum checkout, ini review jujur [PRODUK] dari gue.',kategori:'Umum'},
+  {id:'h15',txt:'Udah 10rb+ terjual dan ratingnya 4.9. Gue buktiin sendiri apa beneran sebagus itu.',kategori:'Umum'},
+  {id:'h16',txt:'Semua orang rekomendasiin [PRODUK] yang itu-itu aja. Gue kasih alternatif yang lebih worth it.',kategori:'Umum'},
+  {id:'h17',txt:'Ini [PRODUK] yang jarang dibahas tapi diam-diam banyak yang repeat order.',kategori:'Umum'},
+  {id:'h18',txt:'Kalau lo sering nunda beli [PRODUK] karena banyak pilihan — coba yang ini dulu.',kategori:'Umum'},
+  {id:'h19',txt:'Ini bukan endorse, bukan iklan. Ini murni pengalaman gue pakai [PRODUK] ini.',kategori:'Umum'},
+  {id:'h20',txt:'Gue udah coba 5 [PRODUK] berbeda. Yang ini yang paling gue suka — dan ini alasannya.',kategori:'Umum'}
 ];
 const DEF_PROOFS=[
-  {id:'p1',txt:'Udah ribuan yang order, dan reviewnya konsisten — bukan dari gue, tapi dari yang udah beli.',kategori:'Umum'},
-  {id:'p2',txt:'Rating-nya tinggi karena memang worth it, bukan karena kebetulan.',kategori:'Umum'},
-  {id:'p3',txt:'Gue bukan satu-satunya yang rekomendasiin ini — cek sendiri jumlah pembelinya.',kategori:'Umum'},
-  {id:'p4',txt:'Yang repeat order biasanya nggak bohong soal kualitas.',kategori:'Umum'},
-  {id:'p5',txt:'Reviewnya konsisten dari berbagai pembeli — itu yang bikin gue yakin rekomendasiin ini.',kategori:'Umum'},
-  {id:'p6',txt:'Bukan karena viral, tapi karena emang bagus. Makanya terus laku.',kategori:'Umum'},
-  {id:'p7',txt:'Sudah terbukti dari review pembeli — kualitasnya sesuai harganya.',kategori:'Umum'},
+  {id:'p1',txt:'Udah ribuan yang order, dan reviewnya konsisten bagus — bukan dari gue doang, tapi dari yang udah beli.',kategori:'Umum'},
+  {id:'p2',txt:'Rating 4.9 dari ribuan pembeli. Angka segitu nggak bisa dimanipulasi.',kategori:'Umum'},
+  {id:'p3',txt:'Yang repeat order biasanya nggak bohong soal kualitas. Dan ini salah satu produk yang sering di-repeat.',kategori:'Umum'},
+  {id:'p4',txt:'Reviewnya konsisten positif dari berbagai tipe pembeli — itu yang bikin gue yakin rekomendasiin.',kategori:'Umum'},
+  {id:'p5',txt:'Bukan karena viral sesaat, tapi karena emang bagus. Makanya penjualannya terus naik.',kategori:'Umum'},
+  {id:'p6',txt:'Gue udah pakai ini hampir sebulan. Kalau jelek, nggak mungkin gue rekomendasiin.',kategori:'Umum'},
+  {id:'p7',txt:'Temen gue yang awalnya skeptis akhirnya ikut beli setelah liat punya gue. Itu bukti paling jujur.',kategori:'Umum'},
+  {id:'p8',txt:'Udah gue pakai rutin dan masih awet sampai sekarang. Worth every rupiah.',kategori:'Umum'},
+  {id:'p9',txt:'Cek sendiri kolom komentarnya — banyak yang udah buktiin dan share hasilnya.',kategori:'Umum'},
+  {id:'p10',txt:'Harga segini dapet kualitas kayak gini? Wajar aja banyak yang langsung checkout.',kategori:'Umum'},
+  {id:'p11',txt:'Bandingkan aja sebelum dan sesudah pakai — hasilnya ngomong sendiri.',kategori:'Umum'},
+  {id:'p12',txt:'Ini produk yang masuk daftar top seller bukan karena iklan, tapi karena performa penjualannya emang bagus.',kategori:'Umum'}
 ];
 const DEF_CTAS=[
-  {id:'c1',txt:'Link produknya ada di keranjang, tap kalau mau.',kategori:'Umum'},
-  {id:'c2',txt:'Tap keranjang kuning di bawah kalau tertarik.',kategori:'Umum'},
-  {id:'c3',txt:'Kalau mau coba, keranjangnya ada di bawah.',kategori:'Umum'},
-  {id:'c4',txt:'Cek dulu di keranjang — siapa tahu cocok buat lo.',kategori:'Umum'},
-  {id:'c5',txt:'Ada di keranjang, tap aja.',kategori:'Umum'},
-  {id:'c6',txt:'Link ada di keranjang, bebas dicek dulu.',kategori:'Umum'},
+  {id:'c1',txt:'Link produknya ada di keranjang kuning, tap kalau tertarik.',kategori:'Umum'},
+  {id:'c2',txt:'Cek dulu aja di keranjang kuning — nggak ada ruginya liat-liat.',kategori:'Umum'},
+  {id:'c3',txt:'Harga segini worth banget. Keranjang kuning ada di bawah.',kategori:'Umum'},
+  {id:'c4',txt:'Stoknya sering kosong, jadi kalau masih available mending langsung amankan.',kategori:'Umum'},
+  {id:'c5',txt:'Mumpung masih ada promo, langsung cek keranjang kuning sebelum harga normal.',kategori:'Umum'},
+  {id:'c6',txt:'Bisa bayar di tempat. Langsung order aja di keranjang kuning.',kategori:'Umum'},
+  {id:'c7',txt:'Kalau mau coba, link-nya ada di bawah. Bebas cek dulu detailnya.',kategori:'Umum'},
+  {id:'c8',txt:'Udah banyak yang checkout dari video ini. Keranjang kuning ada di bawah ya.',kategori:'Umum'},
+  {id:'c9',txt:'Ini rekomendasi jujur dari gue. Tap keranjang kuning kalau mau punya juga.',kategori:'Umum'},
+  {id:'c10',txt:'Save dulu videonya buat pertimbangan, atau langsung cek di keranjang kuning.',kategori:'Umum'}
 ];
 
 // ============================================================

@@ -1,8 +1,8 @@
 /*
-Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi. v2.3: Auto-detect brand saat import.
+Tujuan: Modul Bank Teks (Kategori Filter), Script Generator (AI), Import Analytics (Format Baru dengan Period Snapshots), Benchmark, dan Inisialisasi Aplikasi. v2.4: Auto-detect jenis produk saat import.
 Caller: index.html, onload browser
 Dependensi: Semua file sebelumnya (01 s/d 07)
-Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots, recalcScores, detectBrand
+Main Functions: renderBank, genScript, processFile, importRows, renderBench, adoptBench, renderBankCatDropdowns, periodRelation, mergeSnapshot, sumSnapshots, recalcScores, detectBrand, detectJenis
 Side Effects: LocalStorage write (via save()), File Reader I/O
 */
 
@@ -91,6 +91,57 @@ function addCTA(){
 function delHook(id){S.hooks=S.hooks.filter(h=>h.id!==id);save();renderHookList();}
 function delProof(id){S.proofs=S.proofs.filter(p=>p.id!==id);save();renderProofList();}
 function delCTA(id){S.ctas=S.ctas.filter(c=>c.id!==id);save();renderCTAList();}
+
+function mergeDefaultTemplates() {
+  let hAdded = 0, pfAdded = 0, ctaAdded = 0;
+  
+  // Merge hooks
+  DEF_HOOKS.forEach(defH => {
+    const exists = S.hooks.some(h => h.txt.trim().toLowerCase() === defH.txt.trim().toLowerCase());
+    if (!exists) {
+      S.hooks.push({ ...defH, id: 'h' + Date.now() + Math.random() });
+      hAdded++;
+    }
+  });
+
+  // Merge proofs
+  DEF_PROOFS.forEach(defPf => {
+    const exists = S.proofs.some(p => p.txt.trim().toLowerCase() === defPf.txt.trim().toLowerCase());
+    if (!exists) {
+      S.proofs.push({ ...defPf, id: 'p' + Date.now() + Math.random() });
+      pfAdded++;
+    }
+  });
+
+  // Merge ctas
+  DEF_CTAS.forEach(defCta => {
+    const exists = S.ctas.some(c => c.txt.trim().toLowerCase() === defCta.txt.trim().toLowerCase());
+    if (!exists) {
+      S.ctas.push({ ...defCta, id: 'c' + Date.now() + Math.random() });
+      ctaAdded++;
+    }
+  });
+
+  if (hAdded || pfAdded || ctaAdded) {
+    save();
+    renderBank();
+    toast(`Berhasil menggabungkan: +${hAdded} Hook, +${pfAdded} Proof, +${ctaAdded} CTA baru.`);
+  } else {
+    toast("Semua template bawaan sudah ada di bank teks Anda.");
+  }
+}
+
+function resetTemplatesToDefault() {
+  if (confirm("Apakah Anda yakin ingin me-reset semua template? Semua template kustom Anda akan dihapus.")) {
+    S.hooks = JSON.parse(JSON.stringify(DEF_HOOKS));
+    S.proofs = JSON.parse(JSON.stringify(DEF_PROOFS));
+    S.ctas = JSON.parse(JSON.stringify(DEF_CTAS));
+    save();
+    renderBank();
+    toast("Semua template berhasil di-reset ke bawaan v2.4.");
+  }
+}
+
 
 // ============================================================
 // SCRIPT GENERATOR (standalone)
@@ -320,6 +371,35 @@ function detectBrand(name) {
   return brand ? brand.charAt(0).toUpperCase() + brand.slice(1) : '';
 }
 
+function detectJenis(name) {
+  if (!name) return '';
+  const words = name.trim().split(/\s+/);
+  const jenisKeywords = [
+    'parfum','edp','edt','cologne','body mist',
+    'kaos','kemeja','celana','jaket','hoodie','jogger','polo','sweater','cardigan','vest',
+    'sepatu','sandal','sneakers','boots',
+    'tas','ransel','sling bag','clutch','backpack',
+    'jam tangan','gelang','kalung','cincin','anting',
+    'serum','sunscreen','moisturizer','toner','cleanser','masker',
+    'skincare','bodycare','haircare','shampoo','conditioner',
+    'vitamin','suplemen',
+    'snack','kopi','teh','coklat','susu',
+    'charger','earphone','headset','powerbank','kabel','case','casing',
+    'alat','set','kit'
+  ];
+  const searchRange = words.slice(0, Math.min(5, words.length));
+  for (const keyword of jenisKeywords) {
+    const kwWords = keyword.split(' ');
+    for (let i = 0; i <= searchRange.length - kwWords.length; i++) {
+      const slice = searchRange.slice(i, i + kwWords.length).join(' ').toLowerCase();
+      if (slice === keyword) {
+        return kwWords.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+    }
+  }
+  return '';
+}
+
 function importRows(rows,filename){
   let added=0,merged=0,skipped=0;
   rows.forEach(row=>{
@@ -391,8 +471,10 @@ function importRows(rows,filename){
     let prod=S.products.find(p=>produk.toLowerCase()===p.nama.toLowerCase());
     if(!prod){
       const cat=String(fk(row,'kategori_produk','kategoriproduk','kategori','category')||'').trim();
-      prod={id:'p'+Date.now()+Math.random(),nama:produk,brand:detectBrand(produk),jenis:'',harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
+      prod={id:'p'+Date.now()+Math.random(),nama:produk,brand:detectBrand(produk),jenis:detectJenis(produk),harga:0,komisi:0,kategori:cat,labelPrestasi:'-',gmvAktif:false,descVariants:[],nVideo:0,spreadDays:0,maxViews:0,avgViews:0,totalItemsSold:0,totalGMV:0,conversionRate:0,avgCTR:0,avgCTOR:0,uploadDates:[],score:0,klasifikasi:'MONITOR',slotRek:'08:00/12:00',salesVideos:0,salesConsistency:0,conversionEfficiency:0,bestDays:[],bestHours:[]};
       S.products.push(prod);
+    } else if (!prod.jenis) {
+      prod.jenis = detectJenis(produk);
     }
     const estK=sold>0&&prod.komisi>0?sold*prod.komisi:0;
     S.contents.push({
