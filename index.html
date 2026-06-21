@@ -501,22 +501,26 @@ Side Effects: Membaca/menulis localStorage ('affos4', 'gemini_api_key'), melakuk
       + (punya_label × 15%)
       + (max_views/max × 10%)</span>
 
-<span class="s-hd">MODE 2 — Personal (TOPSIS multi-kriteria)</span>
+<span class="s-hd">MODE 2 — Personal (Composite Score 4-Layer)</span>
 <span class="s-nt">Aktif otomatis saat ≥3 produk punya data CTR/CTOR</span>
-<span class="s-tx">Bobot: Sold 35% · CTOR 30% · CTR 20% · Upload 10% · CR 5% (GMV 0%)
-Steps: normalisasi → bobot → jarak ke ideal+ dan ideal−
-Score = d(ideal−) ÷ (d(ideal+) + d(ideal−)) → range 0–1</span>
+<span class="s-tx">Formula: Final Score = Base(TOPSIS) × Efficiency × Momentum × Freshness
+- Base (TOPSIS): Sold 35% (effective) · CTOR 30% · CTR 20% · Upload 10% · CR 5%
+- Efficiency: Penalti jika video banyak tapi sold rendah (range 0.5 - 1.15)
+- Momentum: Trend sales periode terbaru vs sebelumnya (range 0.6 - 1.3)
+- Freshness: Usia penjualan terakhir (70%) + upload terakhir (30%) (range 0.2 - 1.0)</span>
 
-<span class="s-hd">Klasifikasi (TOPSIS mode):</span>
-<span style="color:var(--gr)">WINNING  </span><span class="s-tx">(sold ≥ 5 AND n ≥ 2) OR (sold ≥ 2 + CR ≥ 0.5% + n ≥ 2) OR (n ≥ 3 + sc ≥ 0.4 + sold ≥ 2) OR (TOPSIS ≥ 0.65 AND sold ≥ 1)</span>
-<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">sold ≥ 2 OR (sold ≥ 1 AND n ≥ 2) OR TOPSIS ≥ 0.40 OR (CTR ≥ 2.0% + n ≥ 2 + maxViews ≥ 1000)</span>
-<span style="color:var(--am)">MONITOR  </span><span class="s-tx">Data minim, belum memenuhi kriteria lain</span>
-<span style="color:var(--rd)">DROP     </span><span class="s-tx">n ≥ 3, views < 2000, CTR = 0, CTOR = 0, no sales</span>
+<span class="s-hd">Klasifikasi (Composite mode):</span>
+<span style="color:var(--gr)">WINNING  </span><span class="s-tx">(cs ≥ 50 AND es ≥ 2) OR (cs ≥ 35 AND es ≥ 3) OR (pws ≥ 3 AND rs ≥ 1) OR (es ≥ 4 AND dsls ≤ 14)</span>
+<span style="color:var(--bl)">POTENTIAL</span><span class="s-tx">(cs ≥ 25 AND es ≥ 1) OR (cs ≥ 35) OR (pws ≥ 2) OR (es ≥ 0.8 AND n ≥ 2) OR (CTR ≥ 2.0% AND n ≥ 2 AND maxViews ≥ 1000)</span>
+<span style="color:var(--am)">MONITOR  </span><span class="s-tx">Default jika belum memenuhi kriteria lain</span>
+<span style="color:var(--rd)">DROP     </span><span class="s-tx">(n ≥ 5 AND rawSold = 0 AND maxViews < 3000) ATAU (n ≥ 3 AND maxViews < 2000 AND CTR = 0 AND CTOR = 0 AND rawSold = 0)</span>
 
 <span class="s-hd">Anomaly Detection (otomatis):</span>
 <span class="s-tx">⚡ Views spike + CTOR rendah + 1× upload → GMV Max signal
 🔥 CTOR tinggi + upload sedikit → hidden winner
-💰 3+ produk GMV aktif → cluster seller iklan</span>
+↘️ Momentum Drop → penurunan penjualan antar-periode terdeteksi
+🛑 Content Saturation → video banyak tapi 0 sales efektif
+📈 Trending → produk baru performa sales tinggi</span>
         </div>
       </div>
     </div>

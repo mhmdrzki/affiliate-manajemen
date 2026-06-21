@@ -1,9 +1,9 @@
 /*
-Tujuan: Modul Dashboard dan Formatter Utilitas
+Tujuan: Modul Dashboard dan Formatter Utilitas (Render widgets, alerts anomali/saturasi/momentum).
 Caller: 04-nav.js, 08-views.js (Init)
-Dependensi: S (dari 02-state), detectAnomalies (dari 03-scoring)
+Dependensi: S (dari 02-state.js), detectAnomalies (dari 03-scoring.js)
 Main Functions: fmt, renderDash
-Side Effects: DOM rendering
+Side Effects: Merender DOM dashboard
 */
 
 // ============================================================
@@ -68,7 +68,7 @@ function renderDash(){
   
   // Scoring mode indicator
   const modeLabel=S.scoringMode==='topsis'
-    ?'<div class="al" style="background:var(--grb);border:1px solid var(--grd);color:#86EFAC;font-size:10px;margin-bottom:6px">✦ Scoring mode: <strong>TOPSIS multi-kriteria</strong> (data CTR/CTOR tersedia) — akurasi tinggi</div>'
+    ?'<div class="al" style="background:var(--grb);border:1px solid var(--grd);color:#86EFAC;font-size:10px;margin-bottom:6px">✦ Scoring mode: <strong>Composite Score (TOPSIS + Efficiency + Momentum + Freshness)</strong> — akurasi tinggi</div>'
     :'<div class="al" style="background:var(--pub);border:1px solid var(--pud);color:#C4B5FD;font-size:10px;margin-bottom:6px">◈ Scoring mode: <strong>Frekuensi-based</strong> (belum cukup data CTR/CTOR) — tambah ≥3 produk ber-data untuk aktifkan TOPSIS</div>';
 
   const als=[modeLabel];
@@ -77,8 +77,9 @@ function renderDash(){
   // Anomaly alerts from detector
   const anomalies=detectAnomalies(S.products);
   anomalies.forEach(a=>{
-    const cls=a.type==='hidden'?'al-s':a.type==='gmvmax'?'al-w':a.type==='seller'?'al-p':'al-i';
-    als.push(`<div class="al ${cls}">${a.type==='hidden'?'🔥':a.type==='gmvmax'?'⚡':a.type==='seller'?'💰':'📝'} ${a.msg}</div>`);
+    const cls=a.type==='hidden'||a.type==='trending'?'al-s':a.type==='gmvmax'||a.type==='momentumdrop'?'al-w':a.type==='seller'?'al-p':a.type==='saturation'?'al-d':'al-i';
+    const emoji=a.type==='hidden'?'🔥':a.type==='trending'?'📈':a.type==='gmvmax'?'⚡':a.type==='momentumdrop'?'↘️':a.type==='seller'?'💰':a.type==='saturation'?'🛑':'📝';
+    als.push(`<div class="al ${cls}">${emoji} ${a.msg}</div>`);
   });
 
   if(drop.length)als.push(`<div class="al al-d">⚠️ <strong>${drop.length} produk harus di-drop</strong>: ${drop.slice(0,3).map(p=>(p.jenis||p.nama).substring(0,20)).join(', ')}</div>`);

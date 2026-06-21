@@ -1,5 +1,5 @@
 <!--
-Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.4.
+Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.5.
 Caller: AI Coding Assistant (Antigravity), Pengembang Manusia (awal sesi).
 Dependensi: js/*.js, css/style.css, index.html.
 Main Functions: Menyediakan peta struktur berkas statis, alur data inti, dan blind spots.
@@ -22,7 +22,7 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 ## 2. Core Logic Flow (Function-Level Flowchart)
 
 * **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
-* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik) ➔ `scoreTOPSIS()` (TOPSIS 6 kriteria) ➔ `classifyP()` (WINNING: sold>=5 + n>=2, sold>=2+CR>=0.5%+n>=2, sc>=0.4+sold>=2, ts>=0.65+sold>=1; POTENTIAL: sold>=2, sold>=1+n>=2, ts>=0.40, ctr>=2.0%+n>=2+mv>=1000) ➔ Urutkan `S.products` ➔ `save()`
+* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik tertimbang recency + period snapshot) ➔ `scoreTOPSIS()` (TOPSIS dengan input `effectiveSold`) ➔ `computeCompositeScore()` (TOPSIS × Efficiency × Momentum × Freshness) ➔ `classifyP()` (WINNING: cs≥50 & es≥2, cs≥35 & es≥3, pws≥3 & rs≥1, es≥4 & dsls≤14; POTENTIAL: cs≥25 & es≥1, cs≥35, pws≥2, es≥0.8 & n≥2, ctr≥2.0 & n≥2 & mv≥1000; OVERRIDES: DROP & MONITOR) ➔ Urutkan `S.products` ➔ `save()`
 * **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` (jika opsi jam analitik dicentang) ➔ Pembagian slot proporsi kuota (`allocateQuotas()`) ➔ Round-Robin produk per tier (`roundRobinPick()`) dengan jeda cooldown produk + brand ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries) dan sinkronisasi perubahan manual via `syncActiveScheduleToHistory()`
 * **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
 * **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
@@ -59,8 +59,8 @@ Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
    * *Fungsi Utama*: `gdConnect()`, `gdDisconnect()`, `gdLoadFromDrive()`, `gdSaveNow()`, `gdScheduleSync()`.
 2. **[js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)**: State management `S` & Gemini API key/model selector.
    * *Fungsi Utama*: `toast()`, `save()`, `callGemini()`, `initGeminiKey()`, `saveGeminiKey()`.
-3. **[js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js)**: Algoritma dual pemeringkatan volume-first, anomali, dan agregasi jadwal dinamis.
-   * *Fungsi Utama*: `scoreBenchmark()`, `scoreTOPSIS()`, `classifyP()`, `analyzePersonalPatterns()`, `computeDynamicSlots()`, `refreshScores()`, `updateBadges()`.
+3. **[js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js)**: Algoritma dual pemeringkatan volume-first dengan Composite Score 4-Layer (Recency, Efisiensi, Momentum, Freshness), anomali deteksi, dan agregasi jadwal dinamis.
+   * *Fungsi Utama*: `scoreBenchmark()`, `scoreTOPSIS()`, `classifyP()`, `analyzePersonalPatterns()`, `computeDynamicSlots()`, `refreshScores()`, `updateBadges()`, `computeCompositeScore()`, `calcEfficiencyMult()`, `calcMomentumMult()`, `calcFreshnessMult()`.
 4. **[js/04-nav.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/04-nav.js)**: Navigasi halaman SPA dan handling modals.
    * *Fungsi Utama*: `goPage()`, `tabSw()`, `setMode()`, `openModal()`, `closeModal()`.
 5. **[js/05-dashboard.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/05-dashboard.js)**: Agregasi KPI bisnis analitik dan widget alert.
@@ -91,7 +91,7 @@ Semua risiko teridentifikasi dari versi sebelumnya telah ditangani:
 - ✅ **Deduplikasi Benchmark** diselesaikan dengan perbandingan nama lengkap secara ketat.
 - ✅ **Sesi Drive Expired** dimitigasi dengan proaktif timer mematikan sesi tepat 1 jam dan UI persist di sidebar untuk reconnect.
 - ✅ **CDN Luring** dimitigasi dengan fallback peringatan ramah saat pengguna mencoba impor `.xlsx` atau menghubungkan Drive tanpa koneksi.
-- ✅ **Akumulasi Mingguan Inakurat** diselesaikan dengan `recomputeProductStats()` yang menghitung ulang dari nol menggunakan data mentah `S.contents` (Scratch Aggregation) plus Time-Decay factor 60 hari.
+- ✅ **Akumulasi Mingguan & Degradasi Skor Lambat** diselesaikan dengan time-decay sales (28 hari half-life) di `recomputeProductStats()`, perkalian efisiensi konten, momentum antar-periode import, serta freshness (terakhir sale/upload).
 - ✅ **Dedup Key Lemah** diselesaikan dengan menggunakan `nama + tanggal + durasi`.
 - ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.
 - ✅ **Benchmark Campur Aduk** diselesaikan dengan sistem Multi-Profil Benchmark (opsi *merge/overwrite*) untuk melacak pola antar-affiliator secara terpisah.

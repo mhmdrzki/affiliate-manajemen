@@ -1,9 +1,9 @@
 /*
-Tujuan: Modul Master Produk & Kategori (Render list, metrik AI-Emulator, Deskripsi AI, Quick Add/Save, Kategori Dinamis). v2.3: Tambah field brand di manual add/edit & render.
+Tujuan: Modul Master Produk & Kategori (Render list dengan metrik komposit baru, metrik AI-Emulator, Deskripsi AI, Quick Add/Save, Kategori Dinamis).
 Caller: 04-nav.js, 08-views.js, UI Events
-Dependensi: S, save, callGemini (02-state); bH, refreshScores (03-scoring); fmt (05-dashboard); toast (02-state); openModal, closeModal (04-nav)
+Dependensi: S, save, callGemini (02-state.js); bH, refreshScores (03-scoring.js); fmt (05-dashboard.js); toast (02-state.js); openModal, closeModal (04-nav.js)
 Main Functions: renderProduk, renderPList, delProd, openAddProd, openGenDesc, doGenDesc, saveNewProd, renderCatOptions, addNewCategory, removeCategory, renderCatManager
-Side Effects: LocalStorage write (via save()), Gemini API call, DOM rendering
+Side Effects: Menyimpan data global S ke LocalStorage via save(), memanggil Gemini API, merender DOM
 */
 
 // ============================================================
@@ -32,7 +32,7 @@ function renderPList(elId,ps){
     if (p.jenis && p.jenis !== 'Produk') subtitleParts.push(p.jenis);
     if (p.harga) subtitleParts.push('Rp' + fmt(p.harga));
     const subtitle = subtitleParts.join(' · ');
-
+ 
     return `
     <div class="prod-card" data-prodstatus="${status}" style="opacity: ${status === 'aktif' ? 1 : 0.75}">
       <div class="prod-card-hdr">
@@ -53,10 +53,22 @@ function renderPList(elId,ps){
         <div class="pstat">Upload <span>${p.nVideo||0}×</span></div>
         <div class="pstat">Spread <span>${p.spreadDays||0}hr</span></div>
         <div class="pstat">MaxViews <span>${fmt(p.maxViews||0)}</span></div>
-        ${p.totalItemsSold>0?`<div class="pstat">Sold <span style="color:var(--gr)">${p.totalItemsSold}</span></div>`:''}
+        ${p.totalItemsSold>0?`<div class="pstat" title="Total raw sold (Effective weighted sold)">Sold <span style="color:var(--gr)">${p.totalItemsSold} (${(p.effectiveSold||0).toFixed(1)})</span></div>`:''}
         ${p.totalGMV>0?`<div class="pstat">GMV <span style="color:var(--pu)">Rp${fmt(p.totalGMV)}</span></div>`:''}
         <div class="pstat" title="Sales Consistency: Persentase video pecah telur">CS <span style="color:#6EE7B7">${((p.salesConsistency||0)*100).toFixed(0)}%</span></div>
         <div class="pstat" title="Conversion Efficiency: Penjualan per 10.000 views">CE <span style="color:#93C5FD">${(p.conversionEfficiency||0).toFixed(1)}/10k v</span></div>
+        
+        ${p.totalItemsSold>0?`
+          <div class="pstat" title="Jumlah periode import dengan penjualan">P.Sold <span style="color:var(--bl)">${p.periodsWithSale||0}</span></div>
+          <div class="pstat" title="Kapan terakhir ada penjualan">Last Sale <span style="color:#C084FC">${p.daysSinceLastSale === 999 ? '—' : p.daysSinceLastSale.toFixed(0) + ' hr lalu'}</span></div>
+        `:''}
+        
+        <div class="pstat" title="Kapan terakhir upload konten">Last Upload <span>${p.daysSinceLastContent === 999 ? '—' : p.daysSinceLastContent.toFixed(0) + ' hr lalu'}</span></div>
+        
+        ${p.scoreMode==='topsis'?`
+          <div class="pstat" title="Momentum penjualan antar-periode (Terbaru vs Sebelumnya)">Momentum <span style="color:${p.momentumMult >= 1.2 ? 'var(--gr)' : p.momentumMult > 1.0 ? '#6EE7B7' : p.momentumMult === 1.0 ? 'var(--tx2)' : p.momentumMult >= 0.6 ? 'var(--am)' : 'var(--rd)'};font-weight:bold">${p.momentumMult >= 1.2 ? '↑' : p.momentumMult > 1.0 ? '↗' : p.momentumMult === 1.0 ? '→' : p.momentumMult >= 0.6 ? '↘' : '↓'} (${(p.momentumMult||1.0).toFixed(2)})</span></div>
+        `:''}
+        
         ${p.bestDays && p.bestDays.length?`<div class="pstat" title="Hari Upload Terbaik">Hari <span style="color:var(--ac2)">${p.bestDays.join(',')}</span></div>`:''}
         ${p.bestHours && p.bestHours.length?`<div class="pstat" title="Jam Upload Terbaik">Jam <span style="color:var(--ac2)">${p.bestHours.join(',')}</span></div>`:''}
         ${p.harga?`<div class="pstat">Harga <span>Rp${fmt(p.harga)}</span></div>`:''}

@@ -1,9 +1,9 @@
 /*
-Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) volume-first + AI-Emulator Metrik (CS/CE/CR/Afinitas), Anomali Deteksi, dan Update Badge. v2.3: Perketat threshold WINNING.
+Tujuan: Data Benchmark, Pola Jadwal, Sistem Skoring Ganda (TOPSIS/SAW) + Composite Score 4-Layer (Recency, Efisiensi, Momentum, Freshness) + AI-Emulator Metrik, Anomali Deteksi, dan Update Badge.
 Caller: 04-nav.js, 05-dashboard.js, 06-produk.js, 08-views.js
-Dependensi: S, save (dari 02-state)
-Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies, computeDynamicSlots
-Side Effects: LocalStorage write (via save())
+Dependensi: S, save (dari 02-state.js)
+Main Functions: scoreBenchmark, scoreTOPSIS, classifyP, recomputeProductStats, detectAnomalies, computeDynamicSlots, refreshScores, computeCompositeScore, calcEfficiencyMult, calcMomentumMult, calcFreshnessMult
+Side Effects: Menyimpan data global S ke LocalStorage via save()
 */
 
 // ============================================================
@@ -23,6 +23,9 @@ const BENCH=[
 ];
 let BENCH_JAM=[{j:"08:00",n:18},{j:"10:00",n:37},{j:"12:00",n:28},{j:"14:00",n:30},{j:"16:00",n:23},{j:"18:00",n:18}];
 let BENCH_HARI=[{h:"Senin",n:28,av:4190},{h:"Selasa",n:24,av:3434},{h:"Rabu",n:26,av:3888},{h:"Kamis",n:20,av:2149},{h:"Jumat",n:22,av:1875},{h:"Sabtu",n:29,av:4843},{h:"Minggu",n:28,av:4499}];
+
+const DECAY_HALF_LIFE = 28;   // Confirmed: 4 minggu
+const DECAY_FLOOR = 0.05;     // Jejak minimal data lama
 
 function analyzeBenchPatterns() {
   const ap = S.benchmarkActiveProfile || 'bangjie.id (bawaan)';
@@ -104,7 +107,7 @@ function scoreTOPSIS(ps){
   const raw=ps.map(p=>({
     avgCTOR: p.avgCTOR||0,
     avgCTR: p.avgCTR||0,
-    totalItemsSold: Math.log1p(p.totalItemsSold||0),
+    totalItemsSold: Math.log1p(p.effectiveSold||0),
     totalGMV: Math.log1p((p.totalGMV||0)/10000),
     nVideo: Math.log1p(p.nVideo||0),
     conversionRate: p.conversionRate||0
@@ -125,35 +128,141 @@ function scoreTOPSIS(ps){
 }
 
 // ── CLASSIFY ─────────────────────────────────────────────────
-function classifyP(p,mode){
+function classifyP(p, mode) {
   if ((p.nVideo || 0) === 0) return 'UJI COBA';
-  const n=p.nVideo||0,sold=p.totalItemsSold||0,gmv=p.totalGMV||0;
-  const mv=p.maxViews||0,ctr=p.avgCTR||0,ctor=p.avgCTOR||0;
-  if(mode==='topsis'){
-    const sc = p.salesConsistency||0, ts = p.topsisScore||0, conversionRate = p.conversionRate||0;
-    // WINNING (4 Jalur AI-Emulator)
-    if(sold>=5 && n>=2)return 'WINNING'; // 1. Skala Volume (minimal 2 video)
-    if(sold>=2 && conversionRate>=0.5 && n>=2)return 'WINNING'; // 2. Efisiensi Konversi + min 2 video
-    if(n>=3&&sc>=0.4&&sold>=2)return 'WINNING'; // 3. Konsistensi (Rutin)
-    if(ts>=0.65 && sold>=1)return 'WINNING'; // 4. TOPSIS Score Tinggi + minimal ada penjualan
+  
+  if (mode === 'topsis') {
+    const cs = p.compositeScore || 0;
+    const es = p.effectiveSold || 0;
+    const rs = p.recentSold || 0;
+    const rawSold = p.totalItemsSold || 0;
+    const dsls = p.daysSinceLastSale ?? 999;
+    const n = p.nVideo || 0;
+    const mv = p.maxViews || 0;
+    const ctr = p.avgCTR || 0;
+    const ctor = p.avgCTOR || 0;
+    const pws = p.periodsWithSale || 0;
     
-    // DROP
-    if(n>=3&&mv<2000&&ctr===0&&ctor===0&&sold===0)return 'DROP';
+    // ═══ HARD OVERRIDES ═══════════════════════════════
+    // Saturasi konten: 5+ video, belum pernah sold, views kecil
+    if (n >= 5 && rawSold === 0 && mv < 3000) return 'DROP';
+    // Pernah sold tapi sudah >35 hari tanpa sale baru
+    if (rawSold > 0 && dsls > 35 && rs === 0) return 'MONITOR';
+    // Legacy drop: banyak video, 0 engagement, 0 sold
+    if (n >= 3 && mv < 2000 && ctr === 0 && ctor === 0 && rawSold === 0) return 'DROP';
     
-    // POTENTIAL (diperketat)
-    if(sold>=2)return 'POTENTIAL'; // 1. Minimal 2 penjualan
-    if(sold>=1 && n>=2)return 'POTENTIAL'; // 2. 1 penjualan tapi sudah dipush 2+ video
-    if(ts>=0.40)return 'POTENTIAL'; // 3. TOPSIS Score cukup tinggi
-    if(ctr>=2.0 && n>=2 && mv>=1000)return 'POTENTIAL'; // 4. Engagement kuat + views memadai
+    // ═══ WINNING ══════════════════════════════════════
+    if (cs >= 50 && es >= 2) return 'WINNING';
+    if (cs >= 35 && es >= 3) return 'WINNING';
+    if (pws >= 3 && rs >= 1) return 'WINNING';   // Multi-periode proven + masih fresh
+    if (es >= 4 && dsls <= 14) return 'WINNING';  // Volume efektif besar + fresh
+    
+    // ═══ POTENTIAL ════════════════════════════════════
+    if (cs >= 25 && es >= 1) return 'POTENTIAL';
+    if (cs >= 35) return 'POTENTIAL';
+    if (pws >= 2) return 'POTENTIAL';              // Sold di 2+ periode
+    if (es >= 0.8 && n >= 2) return 'POTENTIAL';
+    if (ctr >= 2.0 && n >= 2 && mv >= 1000) return 'POTENTIAL';
+    
     return 'MONITOR';
   }
+  
   // benchmark (frequency-based)
-  if(n>=5||(n>=3&&sold>0))return 'WINNING';
-  if(n>=3&&mv<2000&&ctr===0&&sold===0)return 'DROP';
-  if(n>=3||(n>=2&&ctr>0))return 'POTENTIAL';
+  const n = p.nVideo || 0, rawSold = p.totalItemsSold || 0;
+  const mv = p.maxViews || 0, ctr = p.avgCTR || 0;
+  if (n >= 5 || (n >= 3 && rawSold > 0)) return 'WINNING';
+  if (n >= 3 && mv < 2000 && ctr === 0 && rawSold === 0) return 'DROP';
+  if (n >= 3 || (n >= 2 && ctr > 0)) return 'POTENTIAL';
   return 'MONITOR';
 }
 function slotR(k){return k==='WINNING'?'16:00/18:00':k==='POTENTIAL'?'10:00/14:00':k==='DROP'?'—':k==='UJI COBA'?'08:00/10:00':'08:00/12:00';}
+
+function calcEfficiencyMult(effectiveSold, nVideo) {
+  // Fase eksplorasi: ≤3 video dalam data tracking → belum cukup data untuk evaluasi
+  if (nVideo <= 3) return 1.0;
+  
+  // yield = effectiveSold / nVideo
+  const yield_ = effectiveSold / nVideo;
+  
+  if (yield_ >= 0.8)  return 1.15;   // Sangat efisien
+  if (yield_ >= 0.4)  return 1.0;    // Normal
+  if (yield_ >= 0.15) return 0.85;   // Di bawah rata-rata
+  if (yield_ > 0)     return 0.7;    // Rendah
+  return 0.5;                        // 0 sold dari 4+ video → saturasi
+}
+
+function calcMomentumMult(latestPeriodSold, prevPeriodSold, olderPeriodsSold, hasEverSold) {
+  // Case 1: Kedua periode ada data sold
+  if (latestPeriodSold > 0 && prevPeriodSold > 0) {
+    const ratio = latestPeriodSold / prevPeriodSold;
+    return Math.max(0.6, Math.min(1.3, ratio)); // Clamp 0.6-1.3
+  }
+  
+  // Case 2: Periode terbaru ada sold, sebelumnya tidak
+  if (latestPeriodSold > 0 && prevPeriodSold === 0) {
+    return 1.2;  // Bangkit / baru mulai sold
+  }
+  
+  // Case 3: Periode terbaru TIDAK sold, sebelumnya ADA
+  if (latestPeriodSold === 0 && prevPeriodSold > 0) {
+    return 0.6;  // Terjun — sinyal penurunan kuat
+  }
+  
+  // Case 4: Kedua periode 0
+  if (olderPeriodsSold > 0) {
+    return 0.5;  // Pernah sold tapi sudah 2+ periode tidak → memudar
+  }
+  
+  if (!hasEverSold) {
+    return 0.85; // Belum pernah sold di sistem — netral-rendah
+  }
+  
+  return 0.5;    // Pernah sold tapi sudah lama sekali
+}
+
+function calcFreshnessMult(daysSinceLastSale, daysSinceLastContent, hasEverSold) {
+  // Sub A: Sale Freshness
+  let saleFresh;
+  if (!hasEverSold)                    saleFresh = 0.7;
+  else if (daysSinceLastSale <= 7)     saleFresh = 1.0;
+  else if (daysSinceLastSale <= 14)    saleFresh = 0.85;
+  else if (daysSinceLastSale <= 21)    saleFresh = 0.65;
+  else if (daysSinceLastSale <= 35)    saleFresh = 0.4;
+  else                                 saleFresh = 0.2;
+  
+  // Sub B: Content Freshness
+  let contentFresh;
+  if (daysSinceLastContent <= 7)       contentFresh = 1.0;
+  else if (daysSinceLastContent <= 14) contentFresh = 0.9;
+  else if (daysSinceLastContent <= 21) contentFresh = 0.8;
+  else                                 contentFresh = 0.7;
+  
+  // Gabungan: sale freshness lebih penting (70%)
+  if (!hasEverSold) return contentFresh;
+  return saleFresh * 0.7 + contentFresh * 0.3;
+}
+
+function computeCompositeScore(p) {
+  const base = (p.topsisScore || 0) * 100;
+  const eff = calcEfficiencyMult(p.effectiveSold || 0, p.nVideo || 0);
+  const mom = calcMomentumMult(
+    p.latestPeriodSold || 0, p.prevPeriodSold || 0,
+    p.olderPeriodsSold || 0, (p.totalItemsSold || 0) > 0
+  );
+  const fresh = calcFreshnessMult(
+    p.daysSinceLastSale ?? 999, p.daysSinceLastContent ?? 999,
+    (p.totalItemsSold || 0) > 0
+  );
+  
+  const raw = base * eff * mom * fresh;
+  p.compositeScore = Math.min(100, Math.round(raw));
+  p.efficiencyMult = eff;
+  p.momentumMult = mom;
+  p.freshnessMult = fresh;
+  
+  // compositeScore jadi pengganti benchScore untuk tampilan
+  p.benchScore = p.compositeScore;
+}
 
 // ── ANOMALY DETECTION ────────────────────────────────────────
 function detectAnomalies(products){
@@ -174,6 +283,25 @@ function detectAnomalies(products){
   // Winning without content
   const noContent=products.filter(p=>p.klasifikasi==='WINNING'&&!(p.descVariants||[]).length);
   if(noContent.length) al.push({type:'content',msg:`<strong>${noContent.length} Winning product</strong> belum punya isi konten. Buka Master Produk → Generate Isi Konten.`});
+  
+  // NEW: Momentum Drop
+  products.forEach(p=>{
+    if(p.scoreMode==='topsis' && (p.momentumMult||1.0)<=0.6 && (p.totalItemsSold||0)>0)
+      al.push({type:'momentumdrop',msg:`<strong>${p.jenis||p.nama.substring(0,22)}</strong> — Penurunan momentum penjualan terdeteksi (${(p.momentumMult||1.0).toFixed(2)}x). Kurangi kuota jadwal posting.`});
+  });
+  
+  // NEW: Content Saturation
+  products.forEach(p=>{
+    if(p.scoreMode==='topsis' && (p.efficiencyMult||1.0)<=0.5 && (p.nVideo||0)>=4)
+      al.push({type:'saturation',msg:`<strong>${p.jenis||p.nama.substring(0,22)}</strong> — Saturasi konten terdeteksi (${p.nVideo} video, 0 sales efektif). Disarankan DROP produk ini.`});
+  });
+
+  // NEW: Trending New Product
+  products.forEach(p=>{
+    if(p.scoreMode==='topsis' && (p.effectiveSold||0)>=1.5 && (p.nVideo||0)<=2)
+      al.push({type:'trending',msg:`<strong>${p.jenis||p.nama.substring(0,22)}</strong> — Produk baru trending dengan sales efektif ${(p.effectiveSold||0).toFixed(1)} dari ${p.nVideo} video. Disarankan tambah jadwal posting!`});
+  });
+
   return al;
 }
 
@@ -203,6 +331,15 @@ function recomputeProductStats() {
     p.conversionRate = 0;           // Rasio sold/views (%)
     p.bestDays = [];                // Hari terbaik [Senin, dll]
     p.bestHours = [];               // Jam terbaik [08:00, dll]
+
+    p.effectiveSold = 0;            // Sales tertimbang recency
+    p.recentSold = 0;               // Sold 14 hari terakhir (raw, tanpa decay)
+    p.daysSinceLastSale = 999;      // Hari sejak sale terakhir
+    p.daysSinceLastContent = 999;   // Hari sejak konten terakhir di-upload
+    p.periodsWithSale = 0;          // Berapa periode import unik punya sale
+    p.latestPeriodSold = 0;         // Sold di periode terbaru
+    p.prevPeriodSold = 0;           // Sold di periode sebelumnya
+    p.olderPeriodsSold = 0;         // Sold di periode lebih lama
   });
 
   const byProd = {};
@@ -248,6 +385,28 @@ function recomputeProductStats() {
 
       if ((c.itemsSold || 0) > 0) prod.salesVideos++;
 
+      // === DECAY pada SALES (BARU) ===
+      const salesDecay = Math.max(DECAY_FLOOR, 1 - ageContentDays / DECAY_HALF_LIFE);
+      prod.effectiveSold += (c.itemsSold || 0) * salesDecay;
+
+      // recentSold — sold dari video yang di-upload dalam 14 hari terakhir
+      if (ageContentDays <= 14) {
+        prod.recentSold += (c.itemsSold || 0);
+      }
+
+      // daysSinceLastSale — tracking kapan terakhir ada penjualan
+      if ((c.itemsSold || 0) > 0) {
+        const saleDate = c.periodeEnd || postDate;
+        const daysSince = Math.max(0, (now - saleDate) / 86400000);
+        prod.daysSinceLastSale = Math.min(prod.daysSinceLastSale, daysSince);
+      }
+
+      // daysSinceLastContent — kapan terakhir upload video
+      prod.daysSinceLastContent = Math.min(
+        prod.daysSinceLastContent, 
+        ageContentDays
+      );
+
       // Agregasi Afinitas Waktu (Hari)
       if (postDate) {
         const dName = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'][new Date(postDate).getDay()];
@@ -266,8 +425,9 @@ function recomputeProductStats() {
         hourAff[hStr].v += (c.views || 0);
       }
 
-      prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.7 + (c.ctr || 0) * 0.3) : (c.ctr || 0);
-      prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.7 + (c.ctor || 0) * 0.3) : (c.ctor || 0);
+      // EMA: data terbaru dominan
+      prod.avgCTR = prod.avgCTR ? (prod.avgCTR * 0.3 + (c.ctr || 0) * 0.7) : (c.ctr || 0);
+      prod.avgCTOR = prod.avgCTOR ? (prod.avgCTOR * 0.3 + (c.ctor || 0) * 0.7) : (c.ctor || 0);
     });
 
     prod.spreadDays = prod.uploadDates.length;
@@ -277,6 +437,30 @@ function recomputeProductStats() {
     prod.salesConsistency = prod.nVideo > 0 ? (prod.salesVideos / prod.nVideo) : 0;
     prod.conversionEfficiency = totalViewsRaw > 0 ? (prod.totalItemsSold / totalViewsRaw) * 10000 : 0;
     prod.conversionRate = totalViewsRaw > 0 ? (prod.totalItemsSold / totalViewsRaw) * 100 : 0;
+
+    // === PERIOD-BASED METRICS ===
+    const periodSoldMap = {};  // { periodeKey: { sold, pEnd } }
+    rows.forEach(c => {
+      (c.periodSnapshots || []).forEach(snap => {
+        const key = (snap.pStart || 0) + '-' + (snap.pEnd || 0);
+        if (!periodSoldMap[key]) {
+          periodSoldMap[key] = { sold: 0, pEnd: snap.pEnd || 0 };
+        }
+        periodSoldMap[key].sold += (snap.itemsSold || 0);
+      });
+    });
+
+    const periodEntries = Object.values(periodSoldMap);
+    prod.periodsWithSale = periodEntries.filter(pe => pe.sold > 0).length;
+
+    // Urutkan periode berdasarkan pEnd (terbaru dulu)
+    periodEntries.sort((a, b) => b.pEnd - a.pEnd);
+
+    if (periodEntries.length >= 1) prod.latestPeriodSold = periodEntries[0].sold;
+    if (periodEntries.length >= 2) prod.prevPeriodSold = periodEntries[1].sold;
+    if (periodEntries.length >= 3) {
+      prod.olderPeriodsSold = periodEntries.slice(2).reduce((s, pe) => s + pe.sold, 0);
+    }
 
     // Pemilihan Afinitas (Prioritas: Sales terbesar, lalu fallback ke Views)
     prod.bestDays = Object.entries(dayAff)
@@ -370,6 +554,12 @@ function refreshScores(){
   // score
   if(useMode==='topsis') scoreTOPSIS(ps);
   else scoreBenchmark(ps);
+  
+  // BARU: Hitung composite score setelah TOPSIS
+  if (useMode === 'topsis') {
+    ps.forEach(p => computeCompositeScore(p));
+  }
+  
   // classify & sort
   ps.forEach(p=>{p.klasifikasi=classifyP(p,useMode);p.slotRek=slotR(p.klasifikasi);});
   const ord={WINNING:0,POTENTIAL:1,'UJI COBA':2,MONITOR:3,DROP:4};
