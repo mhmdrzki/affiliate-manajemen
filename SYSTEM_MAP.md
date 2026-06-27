@@ -1,31 +1,31 @@
 <!--
-Tujuan: Kompas Navigasi & Arsitektur Utama (Ultra-Compact) - v2.5.
-Caller: AI Coding Assistant (Antigravity), Pengembang Manusia (awal sesi).
-Dependensi: js/*.js, css/style.css, index.html.
-Main Functions: Menyediakan peta struktur berkas statis, alur data inti, dan blind spots.
+Tujuan: Kompas Navigasi & Arsitektur Utama (Next.js v16 + Supabase v3.0)
+Caller: AI Coding Assistant (Antigravity), Pengembang Manusia (awal sesi)
+Dependensi: app/**/*.tsx, app/actions/*.ts, lib/supabase/*.ts
+Main Functions: Menyediakan peta struktur berkas, alur data backend/frontend, dan skema database.
 Side Effects: Tidak ada side effects runtime.
 -->
-# SYSTEM_MAP.md — AffiliateOS Ultra-Compact Navigation Map (v2.4)
+# SYSTEM_MAP.md — AffiliateOS Next.js & Supabase Navigation Map (v3.0)
 
-Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di awal sesi untuk menghemat penggunaan token tanpa kehilangan arah pengembangan. Detail implementasi fungsional dan skema database disimpan secara modular di file terkait.
+Peta arsitektur ini berfungsi sebagai kompas navigasi utama di awal sesi untuk mengontrol pemahaman struktur file baru dan interaksi database.
 
 ---
 
 ## 1. Project Summary
 
-* **Tujuan Aplikasi**: Aplikasi SPA (*Single Page Application*) desktop tanpa backend untuk memantau analitik performa kreator afiliasi TikTok Shop, Dual Scoring (SAW/TOPSIS) master produk, slot planner jadwal posting, bank template, dan formulasi naskah video kreatif via Gemini AI.
-* **Tech Stack**: HTML5, Vanilla JS, CSS Modern (Light Mode), LocalStorage (`affos4`, `affos_gd`, `gemini_api_key`), SheetJS (XLSX.js), Google Identity Services (GIS) OAuth2 client, Google Gemini API, Google Drive API.
-* **Arsitektur**: SPA modular berbasis static files (tanpa bundler). Mutasi state global `S` disimpan ke LocalStorage via `save()` dan di-sync debounced (3 detik) asinkron ke cloud Google Drive AppData Folder.
+* **Tujuan Aplikasi**: Aplikasi pemantau analitik performa kreator afiliasi TikTok Shop berbasis Next.js, mencakup evaluasi scoring produk (SAW/TOPSIS), generator jadwal round-robin, pengelola naskah AI, dan template Hook/Proof/CTA.
+* **Tech Stack**: Next.js 16 (App Router), React 19, Supabase (PostgreSQL + RLS), Tailwind CSS v4, Lucide React, Zustand.
+* **Arsitektur**: Full-stack Next.js dengan Server Actions untuk modifikasi data, client-side React components untuk interaktivitas premium, dan Supabase Auth/Database sebagai backend.
 
 ---
 
-## 2. Core Logic Flow (Function-Level Flowchart)
+## 2. Core Logic Flow (Next.js)
 
-* **Impor Data Analitik / Benchmark**: Drop File ➔ `handleFile()` / `handleBenchmarkFile()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ SheetJS ➔ `importRows()` / `importBenchmark()` ➔ `refreshScores()` / `analyzeBenchPatterns()` ([js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js))
-* **Scoring & Klasifikasi**: `refreshScores()` / `recalcScores()` ➔ `recomputeProductStats()` (Agregasi metrik tertimbang recency + period snapshot) ➔ `scoreTOPSIS()` (TOPSIS dengan input `effectiveSold`) ➔ `computeCompositeScore()` (TOPSIS × Efficiency × Momentum × Freshness) ➔ `classifyP()` (WINNING: cs≥50 & es≥2, cs≥35 & es≥3, pws≥3 & rs≥1, es≥4 & dsls≤14; POTENTIAL: cs≥25 & es≥1, cs≥35, pws≥2, es≥0.8 & n≥2, ctr≥2.0 & n≥2 & mv≥1000; OVERRIDES: DROP & MONITOR) ➔ Urutkan `S.products` ➔ `save()`
-* **Generate Jadwal**: Klik Generate ➔ `genSched()` ([js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)) ➔ `computeDynamicSlots()` (jika opsi jam analitik dicentang) ➔ Pembagian slot proporsi kuota (`allocateQuotas()`) ➔ Round-Robin produk per tier (`roundRobinPick()`) dengan jeda cooldown produk + brand ➔ `buildSlotScript()` (per-kategori filter) ➔ `renderSchedOutput()` ➔ Auto-save ke `S.scheduleHistory` (max 20 entries) dan sinkronisasi perubahan manual via `syncActiveScheduleToHistory()`
-* **AI Naskah Video**: Form UI ➔ `genScript() / doGenDesc()` ([js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)) ➔ `callGemini()` ([js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)) ➔ Gemini API ➔ `saveVarToMaster()` ➔ `save()`
-* **Cloud Sync**: `save()` ➔ `gdScheduleSync()` ➔ Debounce 3s ➔ `gdSaveNow()` ([js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js)) ➔ PATCH/POST ke Google Drive AppData Folder
+* **Autentikasi**: `app/(auth)/login` & `register` ➔ Supabase Auth ➔ JWT Cookies ➔ Checked by `middleware.ts`.
+* **Dashboard Utama**: Rute `/` (`app/page.tsx`) ➔ Fetch `products` & `contents` dari Supabase ➔ Kalkulasi live metrics `recomputeProductStats()` & `detectAnomalies()` ➔ Render visual.
+* **Master Produk**: Rute `/products` (`app/(dashboard)/products/page.tsx`) ➔ Fetch master produk ➔ Render tabel interaktif status & form tambah produk.
+* **Impor Data**: Rute `/import` ➔ XLSX/CSV parsed client-side ➔ Server Action `importAnalyticsAction` ➔ Simpan data contents & recalculate scoring ➔ Redireksi dashboard.
+* **Migrasi Data**: Rute `/migrate` ➔ JSON file upload ➔ Server Action `migrateLegacyDataAction` ➔ Reset data & insert bulk ke Supabase.
 
 ---
 
@@ -33,71 +33,60 @@ Peta arsitektur super ringkas ini berfungsi sebagai **kompas navigasi utama** di
 
 ```
 affiliate-manajemen/
-├── index.html          # SPA Layout (Tema Terang) & Form Modals
-├── SYSTEM_MAP.md       # Kompas Navigasi Awal (Berkas ini)
-├── README.md           # Petunjuk instalasi dasar
-├── css/
-│   └── style.css       # Tema terang (Light Mode), responsive grid
-└── js/
-    ├── 01-gdrive.js    # Google Drive Sync (OAuth2 implicit flow & AppData CRUD)
-    ├── 02-state.js     # State Global S (defaults, S.categories, S.scheduleHistory, save(), callGemini())
-    ├── 03-scoring.js   # Dual Scoring SAW/TOPSIS (6 kriteria), classifyP() volume-first, detectAnomalies()
-    ├── 04-nav.js       # SPA Switcher, tab navigasi, modals
-    ├── 05-dashboard.js # Dashboard widget, data KPI, table sorting, fmt() (Tabel 9 kolom)
-    ├── 06-produk.js    # Master produk, add/edit form, AI Desc Generator, Categories manager
-    ├── 07-jadwal.js    # Sched Generator (Hook per kategori, Riwayat, Unduh CSV & TXT)
-    └── 08-views.js     # Text bank (Hook per kategori), Importer, init aplikasi
+├── app/
+│   ├── (auth)/             # Login & Register routes
+│   ├── (dashboard)/        # Layout dashboard & sub-pages
+│   │   ├── import/         # Halaman uploader XLSX/CSV
+│   │   ├── migrate/        # Halaman uploader cadangan JSON v2.5
+│   │   ├── products/       # Halaman master produk (tabel & kontrol status/tambah)
+│   │   ├── schedule/       # Halaman penjadwalan cerdas (Round-Robin generator)
+│   │   ├── scripts/        # Halaman AI Script Generator (Gemini Integration)
+│   │   ├── settings/       # Halaman pengaturan API Key & Profil
+│   │   └── templates/      # Halaman bank template naskah (Hooks, Proofs, CTAs)
+│   ├── actions/            # Next.js Server Actions
+│   │   ├── import.ts       # Aksi parsing spreadsheet & update database
+│   │   ├── migrate.ts      # Aksi dump data JSON lama ke database baru
+│   │   ├── products.ts     # Aksi tambah produk & update status produk
+│   │   ├── schedule.ts     # Aksi generate, load, dan hapus jadwal konten
+│   │   ├── settings.ts     # Aksi pembaruan pengaturan profil & skoring
+│   │   └── templates.ts    # Aksi kelola template naskah (get, add, delete, reset)
+│   ├── api/                # API Route Handlers (Gemini API)
+│   ├── globals.css         # Tailwind v4 Entry & Custom CSS
+│   ├── layout.tsx          # Root Layout HTML
+│   └── page.tsx            # Dashboard Analytics
+├── components/             # Reusable UI Components
+│   ├── layout/             # Sidebar & Topbar
+│   ├── products/           # Interactive components for products page
+│   ├── scripts/            # Interactive components for scripts page (ScriptGeneratorClient)
+│   └── templates/          # Interactive components for templates page (AddTemplateDialog)
+├── lib/                    # Helpers, Engines, & Client Inits
+│   ├── schedule/           # Algoritma penjadwalan cerdas
+│   ├── scoring/            # Engine scoring TOPSIS/SAW & anomalies
+│   ├── supabase/           # Supabase Client & Server initializers
+│   └── utils/              # Data formatters & Excel parsers
+├── supabase/
+│   └── migrations/         # PostgreSQL DB Schemas (RLS, Indexes)
+├── types/                  # TypeScript interface definitions (types/index.ts)
+└── SYSTEM_MAP.md           # Berkas ini (Kompas Navigasi)
 ```
 
 ---
 
-## 4. Module Map (The Chapters)
+## 4. Module Map (Backend Actions & Libs)
 
-Peran 1 kalimat dan fungsi utama dari 8 modul JavaScript:
-
-1. **[js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js)**: Sinkronisasi cloud Google Drive.
-   * *Fungsi Utama*: `gdConnect()`, `gdDisconnect()`, `gdLoadFromDrive()`, `gdSaveNow()`, `gdScheduleSync()`.
-2. **[js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)**: State management `S` & Gemini API key/model selector.
-   * *Fungsi Utama*: `toast()`, `save()`, `callGemini()`, `initGeminiKey()`, `saveGeminiKey()`.
-3. **[js/03-scoring.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/03-scoring.js)**: Algoritma dual pemeringkatan volume-first dengan Composite Score 4-Layer (Recency, Efisiensi, Momentum, Freshness), anomali deteksi, dan agregasi jadwal dinamis.
-   * *Fungsi Utama*: `scoreBenchmark()`, `scoreTOPSIS()`, `classifyP()`, `analyzePersonalPatterns()`, `computeDynamicSlots()`, `refreshScores()`, `updateBadges()`, `computeCompositeScore()`, `calcEfficiencyMult()`, `calcMomentumMult()`, `calcFreshnessMult()`.
-4. **[js/04-nav.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/04-nav.js)**: Navigasi halaman SPA dan handling modals.
-   * *Fungsi Utama*: `goPage()`, `tabSw()`, `setMode()`, `openModal()`, `closeModal()`.
-5. **[js/05-dashboard.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/05-dashboard.js)**: Agregasi KPI bisnis analitik dan widget alert.
-   * *Fungsi Utama*: `fmt()`, `renderDash()`.
-6. **[js/06-produk.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/06-produk.js)**: Master produk, kategori master dinamis, dan AI deskripsi generator.
-   * *Fungsi Utama*: `renderProduk()`, `openGenDesc()`, `doGenDesc()`, `saveNewProd()`, `renderCatOptions()`, `addNewCategory()`, `removeCategory()`, `renderCatManager()`.
-7. **[js/07-jadwal.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/07-jadwal.js)**: Mesin jadwal cerdas (Level 2) berbasis kuota proporsi, hook per-kategori, riwayat jadwal, auto-save manual edits, dan ekspor CSV/TXT.
-   * *Fungsi Utama*: `genSched()`, `allocateQuotas()`, `roundRobinPick()`, `buildSlotScript()`, `renderSchedOutput()`, `loadSchedHistory()`, `deleteSchedHistory()`, `downloadScheduleCSV()`, `downloadScheduleTXT()`, `renderSchedHistory()`, `syncActiveScheduleToHistory()`.
-8. **[js/08-views.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/08-views.js)**: Impor SheetJS, AI standalone generator, hook/proof/cta per-kategori, bank teks, dan app inisialisasi.
-    * *Fungsi Utama*: `renderBank()`, `genScript()`, `processFile()`, `importRows()`, `renderBench()`, `adoptBench()`, `renderBankCatDropdowns()`, `recalcScores()`, `detectBrand()`, `detectJenis()`, `mergeDefaultTemplates()`, `resetTemplatesToDefault()`.
-
----
-
-## 5. Data, Config, & Integrations
-
-* **Detail Skema Database**: `localStorage` key `affos4`. Detail parameter objek `S`, `prod`, dan `content` didefinisikan secara modular di Header Doc **[js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js)**.
-* **Konfigurasi & API**:
-  * API Key kustom disimpan di `localStorage` key `gemini_api_key` (sidebar).
-  * GDrive Client ID berupa konstanta di [js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js).
-  * API Eksternal: Google Gemini API (AI Generator) via [js/02-state.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/02-state.js), GDrive API (Cloud Backup) via [js/01-gdrive.js](file:///d:/xampp/htdocs/affiliate-manajemen/js/01-gdrive.js), SheetJS CDN via [index.html](file:///d:/xampp/htdocs/affiliate-manajemen/index.html).
-  * Lokasi `.env*`/Migration/Seed: `Not found`.
-
----
-
-## 6. Risks / Blind Spots
-
-Semua risiko teridentifikasi dari versi sebelumnya telah ditangani:
-- ✅ **Deduplikasi Benchmark** diselesaikan dengan perbandingan nama lengkap secara ketat.
-- ✅ **Sesi Drive Expired** dimitigasi dengan proaktif timer mematikan sesi tepat 1 jam dan UI persist di sidebar untuk reconnect.
-- ✅ **CDN Luring** dimitigasi dengan fallback peringatan ramah saat pengguna mencoba impor `.xlsx` atau menghubungkan Drive tanpa koneksi.
-- ✅ **Akumulasi Mingguan & Degradasi Skor Lambat** diselesaikan dengan time-decay sales (28 hari half-life) di `recomputeProductStats()`, perkalian efisiensi konten, momentum antar-periode import, serta freshness (terakhir sale/upload).
-- ✅ **Dedup Key Lemah** diselesaikan dengan menggunakan `nama + tanggal + durasi`.
-- ✅ **Statik Benchmark** diselesaikan dengan Import Benchmark dinamis dari fail Excel/CSV independen.
-- ✅ **Benchmark Campur Aduk** diselesaikan dengan sistem Multi-Profil Benchmark (opsi *merge/overwrite*) untuk melacak pola antar-affiliator secara terpisah.
-- ✅ **Bias GMV Produk Mahal** dimitigasi dengan TOPSIS volume-first (Sold bobot naik ke 35%, GMV dihapus 0%, kriteria conversionRate 5%) dan klasifikasi WINNING murni berbasis volume penjualan (sold >= 4 atau sold >= 2 + CR >= 0.5%).
-- ✅ **Data Duplikat Konten Multi-Periode** ditangani dengan `periodSnapshots` non-overlapping array & overlap detection (contains/contained/overlap).
-- ✅ **Error Hapus Riwayat Jadwal** diselesaikan dengan event delegation pada DOM wrap riwayat jadwal.
-- ✅ **Sinkronisasi Drive Lintas Perangkat** ditangani dengan validasi token dan `gdInitOnLoad()` auto-load saat aplikasi dibuka.
-- ✅ **Ketidakakuratan Penjadwalan Berbasis Hari & Komisi** diselesaikan di v2.2 dengan menghapus komisi/harga dari bobot penjadwalan, menghapus dynamic day multiplier, serta beralih ke quota-based proportion + round-robin rotation.
-- ✅ **Penanganan Stok Produk Kosong & Penangguhan Konten** diselesaikan di v2.2 dengan sistem Status 3-level (`aktif`, `jeda`, `habis`). Produk dengan status `jeda` (ditangguhkan) atau `habis` (stok kosong) otomatis dikecualikan dari generate jadwal otomatis. Menambahkan dropdown filter status di halaman Master Produk serta quick action buttons (Jeda, Habis, Aktifkan) pada setiap card produk.
+1. **`app/actions/products.ts`**: Server Actions untuk manajemen master produk.
+   * *Fungsi*: `createProductAction()`, `updateProductStatusAction()`, `saveProductDescVariantAction()`, `updateProductAction()`, `deleteProductAction()`.
+2. **`app/actions/import.ts`**: Server Actions pengolahan Excel analitik.
+   * *Fungsi*: `importAnalyticsAction()`.
+3. **`app/actions/migrate.ts`**: Server Actions migrasi dari v2.5.
+   * *Fungsi*: `migrateLegacyDataAction()`.
+4. **`lib/scoring/engine.ts`**: Algoritma skoring SAW & TOPSIS.
+   * *Fungsi*: `recomputeProductStats()`, `scoreBenchmark()`, `scoreTOPSIS()`, `computeCompositeScore()`, `classifyP()`.
+5. **`lib/scoring/anomalies.ts`**: Deteksi anomali performa produk.
+   * *Fungsi*: `detectAnomalies()`.
+6. **`app/actions/templates.ts`**: Server Actions untuk pengelolaan bank template naskah video.
+   * *Fungsi*: `getTemplatesAction()`, `addTemplateAction()`, `deleteTemplateAction()`, `resetTemplatesToDefaultAction()`.
+7. **`app/actions/schedule.ts`**: Server Actions untuk kalkulasi dan penyimpanan jadwal konten cerdas.
+   * *Fungsi*: `getSchedulesAction()`, `deleteScheduleAction()`, `generateAndSaveScheduleAction()`.
+8. **`app/actions/settings.ts`**: Server Actions untuk pembaruan profil pengguna.
+   * *Fungsi*: `updateProfileAction()`.

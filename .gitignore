@@ -1,0 +1,32 @@
+# Tujuan: Mengabaikan build artifacts, dependensi, dan environment variable lokal dari Git.
+# Caller: Git
+# Dependensi: -
+# Main Functions: Menentukan pola file yang diabaikan oleh Git.
+# Side Effects: Menyembunyikan file yang cocok dari staging area.
+
+# dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# next.js build output
+.next/
+out/
+
+# production/build
+build/
+
+# local env files (Mencegah kebocoran API keys/secrets)
+.env*.local
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# typescript cache
+*.tsbuildinfo
+
+# macOS system files
+.DS_Store

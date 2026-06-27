@@ -1,0 +1,137 @@
+/*
+Tujuan: CSS global entry point dengan variabel warna tema Premium Slate/Indigo, scrollbar custom, dan keyframes animasi.
+Caller: app/layout.tsx
+Dependensi: Tailwind CSS v4 (@import "tailwindcss")
+Main Functions: None (CSS Styling)
+Side Effects: Mengubah style global seluruh halaman di browser.
+*/
+
+@import "tailwindcss";
+
+:root {
+  /* Premium Light Background & High Contrast Slate */
+  --bg: #F8FAFC;         /* Slate 50 */
+  --bg-card: #FFFFFF;    /* White */
+  --bg-panel: #F1F5F9;   /* Slate 100 */
+  --border-light: #E2E8F0; /* Slate 200 */
+  --border-active: #CBD5E1; /* Slate 300 */
+  
+  /* Sidebar Dark Theme (Sleek Contrast) */
+  --sb-bg: #0F172A;      /* Slate 900 */
+  --sb-border: #1E293B;  /* Slate 800 */
+  --sb-item-hover: #1E293B;
+  --sb-text-muted: #94A3B8; /* Slate 400 */
+  --sb-text: #F8FAFC;    /* Slate 50 */
+
+  /* Text Readability */
+  --text-main: #0F172A;  /* Slate 900 */
+  --text-muted: #334155; /* Slate 700 */
+  --text-placeholder: #64748B; /* Slate 500 */
+  
+  /* Premium Indigo Accents */
+  --accent: #6366F1;     /* Indigo 500 */
+  --accent-hover: #4F46E5; /* Indigo 600 */
+  
+  /* Semantic Colors */
+  --success: #059669;    /* Emerald 600 */
+  --success-bg: #ECFDF5;
+  --success-border: #A7F3D0;
+  
+  --info: #2563EB;       /* Blue 600 */
+  --info-bg: #EFF6FF;
+  --info-border: #BFDBFE;
+  
+  --warning: #D97706;    /* Amber 600 */
+  --warning-bg: #FFFBEB;
+  --warning-border: #FDE68A;
+  
+  --danger: #DC2626;     /* Red 600 */
+  --danger-bg: #FEF2F2;
+  --danger-border: #FECACA;
+  
+  --special: #7C3AED;    /* Violet 600 */
+  --special-bg: #F5F3FF;
+  --special-border: #DDD6FE;
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-bg-card: var(--bg-card);
+  --color-bg-panel: var(--bg-panel);
+  --color-border-light: var(--border-light);
+  --color-border-active: var(--border-active);
+  
+  --color-sb-bg: var(--sb-bg);
+  --color-sb-border: var(--sb-border);
+  --color-sb-item-hover: var(--sb-item-hover);
+  --color-sb-text-muted: var(--sb-text-muted);
+  --color-sb-text: var(--sb-text);
+  
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-placeholder: var(--text-placeholder);
+  
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+  
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  
+  --color-special: var(--special);
+  --color-special-bg: var(--special-bg);
+  --color-special-border: var(--special-border);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-main);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Custom Slim Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-active);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-placeholder);
+}
+
+/* Micro-animations */
+@keyframes pulse-sync {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0px rgba(217, 119, 6, 0.4); }
+  100% { box-shadow: 0 0 0 6px transparent; }
+}
+
+.animate-pulse-sync {
+  animation: pulse-sync 0.8s infinite;
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s infinite;
+}
