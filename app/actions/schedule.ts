@@ -1,14 +1,17 @@
 // /*
-// Tujuan: Server Actions untuk pembuatan, pembacaan, dan penghapusan riwayat penjadwalan konten.
+// Tujuan: Server Actions untuk pembuatan, pembacaan, dan penghapusan riwayat penjadwalan konten di SQLite lokal.
 // Caller: Halaman jadwal konten (/schedule)
-// Dependensi: lib/supabase/server.ts, next/cache (revalidatePath), lib/schedule/generator.ts, types/index.ts
+// Dependensi: lib/db/index.ts, lib/supabase/server.ts, next/cache (revalidatePath), lib/schedule/generator.ts, types/index.ts
 // Main Functions: getSchedulesAction, deleteScheduleAction, generateAndSaveScheduleAction
-// Side Effects: Membaca, menulis, dan menghapus baris data di tabel `schedules` di Supabase.
+// Side Effects: Membaca, menulis, dan menghapus baris data di tabel `schedules` di SQLite lokal.
 // */
 
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { schedules, products, templates, contents } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { generateSchedule } from "@/lib/schedule/generator";
 import { Product, Template } from "@/types";
@@ -32,14 +35,25 @@ export async function getSchedulesAction(): Promise<any[]> {
   if (!user) return [];
 
   try {
-    const { data, error } = await supabase
-      .from("schedules")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    const data = await db
+      .select()
+      .from(schedules)
+      .where(eq(schedules.user_id, user.id))
+      .orderBy(desc(schedules.created_at));
 
-    if (error) throw error;
-    return data || [];
+    return (data || []).map(s => {
+      try {
+        return {
+          ...s,
+          schedule_data: JSON.parse(s.schedule_data)
+        };
+      } catch {
+        return {
+          ...s,
+          schedule_data: []
+        };
+      }
+    });
   } catch (err) {
     console.error("Gagal mengambil riwayat jadwal:", err);
     return [];
@@ -61,13 +75,9 @@ export async function deleteScheduleAction(id: string): Promise<ActionResponse> 
   }
 
   try {
-    const { error } = await supabase
-      .from("schedules")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id); // RLS safety double check
-
-    if (error) throw error;
+    await db
+      .delete(schedules)
+      .where(and(eq(schedules.id, id), eq(schedules.user_id, user.id)));
 
     revalidatePath("/schedule");
 
@@ -106,19 +116,32 @@ export async function generateAndSaveScheduleAction(params: {
   const userId = user.id;
 
   try {
-    // 2. Fetch Active Products (status = 'aktif', klasifikasi !== 'DROP')
-    // Catatan: Sesuai rule legacy v2.2, produk 'habis' dan 'jeda' dikeluarkan dari penentuan jadwal.
-    // Tapi kita ambil semua produk status 'aktif'
-    const { data: productsData, error: prodErr } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("status", "aktif");
+    // 2. Fetch Active Products
+    const productsData = await db
+      .select()
+      .from(products)
+      .where(and(eq(products.user_id, userId), eq(products.status, "aktif")));
 
-    if (prodErr) throw prodErr;
+    // Fetch content counts per product to calculate collaboration content made
+    const contentsLog = await db
+      .select({ product_id: contents.product_id })
+      .from(contents)
+      .where(eq(contents.user_id, userId));
 
-    const products = (productsData || []) as unknown as Product[];
-    if (products.length === 0) {
+    const contentCounts: Record<string, number> = {};
+    (contentsLog || []).forEach(c => {
+      if (c.product_id) {
+        contentCounts[c.product_id] = (contentCounts[c.product_id] || 0) + 1;
+      }
+    });
+
+    const mappedProducts = (productsData || []).map(p => ({
+      ...p,
+      desc_variants: p.desc_variants ? JSON.parse(p.desc_variants) : [],
+      content_made: contentCounts[p.id] || 0,
+    })) as unknown as Product[];
+
+    if (mappedProducts.length === 0) {
       return {
         success: false,
         message:
@@ -127,15 +150,13 @@ export async function generateAndSaveScheduleAction(params: {
     }
 
     // 3. Fetch Templates
-    const { data: templatesData, error: tempErr } = await supabase
-      .from("templates")
-      .select("*")
-      .eq("user_id", userId);
+    const templatesData = await db
+      .select()
+      .from(templates)
+      .where(eq(templates.user_id, userId));
 
-    if (tempErr) throw tempErr;
-
-    const templates = (templatesData || []) as unknown as Template[];
-    if (templates.length === 0) {
+    const typedTemplates = (templatesData || []) as unknown as Template[];
+    if (typedTemplates.length === 0) {
       return {
         success: false,
         message:
@@ -147,15 +168,14 @@ export async function generateAndSaveScheduleAction(params: {
     let personalJamList: { j: string; n: number }[] = [];
     if (params.useDynamicJam) {
       // Fetch contents
-      const { data: contentsData } = await supabase
-        .from("contents")
-        .select("tanggal_upload")
-        .eq("user_id", userId);
+      const contentsData = await db
+        .select({ tanggal_upload: contents.tanggal_upload })
+        .from(contents)
+        .where(eq(contents.user_id, userId));
 
-      const contents = contentsData || [];
       const jamMap: Record<string, number> = {};
 
-      contents.forEach((c) => {
+      contentsData.forEach((c) => {
         if (c.tanggal_upload) {
           const date = new Date(c.tanggal_upload);
           const hStr = date.getHours().toString().padStart(2, "0") + ":00";
@@ -186,30 +206,31 @@ export async function generateAndSaveScheduleAction(params: {
       winPct: params.winPct,
       useDynamicJam: params.useDynamicJam,
       useCooldown: params.useCooldown,
-      products,
-      templates,
+      products: mappedProducts,
+      templates: typedTemplates,
       competitorJamList,
       personalJamList,
     });
 
     // 7. Simpan ke database
-    const { data: savedSchedule, error: saveErr } = await supabase
-      .from("schedules")
-      .insert({
-        user_id: userId,
-        schedule_data: scheduleDaySlots,
-      })
-      .select()
-      .single();
+    const newSchedule = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      schedule_data: JSON.stringify(scheduleDaySlots),
+      created_at: new Date().toISOString(),
+    };
 
-    if (saveErr) throw saveErr;
+    await db.insert(schedules).values(newSchedule);
 
     revalidatePath("/schedule");
 
     return {
       success: true,
       message: "Jadwal cerdas berhasil di-generate dan disimpan.",
-      data: savedSchedule,
+      data: {
+        ...newSchedule,
+        schedule_data: scheduleDaySlots
+      },
     };
   } catch (err: any) {
     return {

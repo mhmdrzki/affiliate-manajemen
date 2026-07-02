@@ -1,11 +1,11 @@
 "use client";
 
 // /*
-// Tujuan: Menyediakan menu navigasi sidebar premium dengan deteksi rute aktif dan integrasi logout Supabase.
+// Tujuan: Menyediakan menu navigasi sidebar premium dengan deteksi rute aktif, status mode lokal, dan link ke Riwayat Konten.
 // Caller: app/(dashboard)/layout.tsx
-// Dependensi: next/link, next/navigation, lucide-react, @supabase/ssr (createClient)
+// Dependensi: next/link, next/navigation, lucide-react
 // Main Functions: Sidebar
-// Side Effects: Berkomunikasi dengan Supabase Auth untuk logout, mengalihkan rute halaman.
+// Side Effects: None
 // */
 
 import Link from "next/link";
@@ -17,11 +17,10 @@ import {
   FileText,
   Sparkles,
   Upload,
-  Settings,
   Database,
-  LogOut,
+  Settings,
+  Video,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 
 interface SidebarProps {
   userEmail?: string | null;
@@ -30,11 +29,11 @@ interface SidebarProps {
 export default function Sidebar({ userEmail }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
 
   const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Master Produk", href: "/products", icon: ShoppingBag },
+    { name: "Riwayat Konten", href: "/history", icon: Video },
     { name: "Jadwal Konten", href: "/schedule", icon: Calendar },
     { name: "AI Script Generator", href: "/scripts", icon: Sparkles },
     { name: "Bank Template", href: "/templates", icon: FileText },
@@ -42,14 +41,6 @@ export default function Sidebar({ userEmail }: SidebarProps) {
     { name: "Migrasi Data", href: "/migrate", icon: Database },
     { name: "Pengaturan", href: "/settings", icon: Settings },
   ];
-
-  const handleLogout = async () => {
-    if (confirm("Apakah Anda yakin ingin keluar dari AffiliateOS?")) {
-      await supabase.auth.signOut();
-      router.refresh();
-      router.push("/login");
-    }
-  };
 
   return (
     <aside className="w-64 bg-sb-bg border-r border-sb-border flex flex-col fixed inset-y-0 left-0 z-50 text-sb-text select-none">
@@ -63,7 +54,7 @@ export default function Sidebar({ userEmail }: SidebarProps) {
             Affiliate<em>OS</em>
           </div>
           <div className="text-[8px] text-sb-text-muted font-mono tracking-widest uppercase">
-            v3.0 Full-Stack
+            v3.0 Local Edition
           </div>
         </div>
       </div>
@@ -104,19 +95,17 @@ export default function Sidebar({ userEmail }: SidebarProps) {
               {userEmail ? userEmail.split("@")[0] : "User"}
             </div>
             <div className="text-[10px] text-sb-text-muted truncate">
-              {userEmail || "loading..."}
+              {userEmail || "local@domain.com"}
             </div>
           </div>
         </div>
         
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 hover:border-red-600 rounded-md text-[11px] font-bold transition-all duration-150 cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Keluar</span>
-        </button>
+        <div className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-accent/10 text-accent border border-accent/20 rounded-md text-[11px] font-bold">
+          <Database className="w-3.5 h-3.5" />
+          <span>Mode Lokal (Offline)</span>
+        </div>
       </div>
     </aside>
   );
 }
+

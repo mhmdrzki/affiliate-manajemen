@@ -1,35 +1,42 @@
 // /*
-// Tujuan: Menyediakan instansiasi server-side Supabase Client untuk Server Components, Server Actions, dan Route Handlers.
+// Tujuan: Menyediakan instansiasi server-side Supabase Client yang di-mock untuk lokal tanpa login.
 // Caller: Next.js Server Components, Actions, API Routes
-// Dependensi: @supabase/ssr, next/headers, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Dependensi: None
 // Main Functions: createClient
-// Side Effects: Membaca/menulis HTTP cookies, berkomunikasi dengan Supabase API.
+// Side Effects: None
 // */
 
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-
 export async function createClient() {
-  const cookieStore = await cookies();
+  const mockUser = {
+    id: '00000000-0000-0000-0000-000000000000',
+    email: 'local@domain.com',
+    user_metadata: { display_name: 'Local User' }
+  };
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Abaikan jika dipanggil dari Server Component yang bersifat read-only
-          }
-        },
-      },
-    }
-  );
+  return {
+    auth: {
+      getUser: async () => ({
+        data: { user: mockUser },
+        error: null,
+      }),
+      getSession: async () => ({
+        data: { session: { user: mockUser } },
+        error: null,
+      }),
+      signOut: async () => ({ error: null }),
+      signInWithPassword: async () => ({ data: { user: mockUser }, error: null }),
+      signUp: async () => ({ data: { user: mockUser }, error: null }),
+    },
+    // Fallbacks just in case
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: new Error('Use Drizzle instead') }),
+          order: () => ({ data: [], error: null })
+        }),
+        order: () => ({ data: [], error: null })
+      })
+    })
+  } as any;
 }
+

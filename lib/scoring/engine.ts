@@ -1,446 +1,699 @@
 // /*
-// Tujuan: Pemrosesan metrik analitik produk (agregasi, time-decay, dual-scoring TOPSIS/SAW, composite multipliers, dan klasifikasi).
-// Caller: API routes, Server Actions, data importer
+// Tujuan: Pemrosesan metrik analitik produk berbasis TikTok Orders (agregasi, sales regularity index, dual-scoring, composite multipliers, dan klasifikasi).
+// Caller: API routes, Server Actions, data importer, Dashboard UI
 // Dependensi: types/index.ts
-// Main Functions: recomputeProductStats, scoreBenchmark, scoreTOPSIS, computeCompositeScore, classifyP
+// Main Functions: recomputeFromOrders, computeOrderBasedStats, computeCompositeScore, classifyProduct, calcWeeklyQuota, generateRecommendation
 // Side Effects: Mengembalikan objek data dengan kalkulasi metrik teragregasi.
 // */
 
-import { Product, Content, PeriodSnapshot } from "@/types";
+import { Product, Order, StockHistory } from "@/types";
 
-const DECAY_HALF_LIFE = 28; // 4 minggu half-life
-const DECAY_FLOOR = 0.05;   // Jejak minimal data lama
+export interface OrderBasedProductStats {
+  totalOrders: number;
+  totalItemsSold: number;
+  totalRefunded: number;
+  netItemsSold: number;
+  totalGMV: number;
+  totalRevenue: number;
+  avgCommissionRate: number;
+  avgPrice: number;
+  uniqueContentIds: number;
+  ordersPerContent: number;
+  ordersLast7d: number;
+  soldLast7d: number;
+  ordersDay8to14: number;
+  soldDay8to14: number;
+  ordersDay15to21: number;
+  soldDay15to21: number;
+  ordersOlder: number;
+  soldOlder: number;
+  daysSinceLastOrder: number;
+  salesDaysCount: number;
+  totalDaysRange: number;
+  salesDensity: number;
+  avgGapBetweenSales: number;
+  maxGapBetweenSales: number;
+  gapStdDev: number;
+  regularityScore: number;
+  shopAdsOrders: number;
+  affiliateOrders: number;
+  shopAdsRatio: number;
+  isSellerAdvertising: boolean;
+  refundRate: number;
+  settlementRate: number;
+  salesPattern: 'SUSTAINED' | 'MIXED' | 'BURST' | 'NONE';
+  // OOS & Effective metrics
+  suspended_days: number;
+  effective_day_span: number;
+  effective_days_since_first: number;
+  effective_days_since_last: number;
+  orders_post_restock: number;
+  days_since_first_content: number;
+  total_content_made: number;
+}
 
-const W_BENCH = { nVideo: 0.50, spreadDays: 0.25, hasPrestasi: 0.15, maxViews: 0.10 };
-const W_TOPSIS = {
-  avgCTOR: 0.30,
-  totalItemsSold: 0.35,
-  avgCTR: 0.20,
-  totalGMV: 0, // Dihapus, bobot 0
-  nVideo: 0.10,
-  conversionRate: 0.05,
-};
-
-function parseDate(ds: string | null): number {
-  if (!ds) return 0;
-  if (ds.includes("/")) {
-    const p = ds.split("/");
-    if (p.length === 3) {
-      return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
+export function computeOrderBasedStats(
+  orders: Order[],
+  product?: Product | null,
+  stockHistory?: StockHistory[],
+  productContents?: any[]
+): OrderBasedProductStats {
+  const now = Date.now();
+  
+  // Volume
+  const totalOrders = orders.length;
+  const totalItemsSold = orders.reduce((sum, o) => sum + (o.items_sold || 0), 0);
+  const totalRefunded = orders.reduce((sum, o) => sum + (o.items_refunded || 0), 0);
+  const netItemsSold = Math.max(0, totalItemsSold - totalRefunded);
+  
+  // Revenue & Price
+  const totalGMV = orders.reduce((sum, o) => sum + (o.gmv || 0), 0);
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.est_commission || 0), 0);
+  const avgCommissionRate = totalOrders > 0 
+    ? orders.reduce((sum, o) => sum + (o.commission_rate || 0), 0) / totalOrders 
+    : 0;
+  const avgPrice = totalOrders > 0
+    ? orders.reduce((sum, o) => sum + (o.price || 0), 0) / totalOrders
+    : 0;
+  
+  // Content IDs
+  const uniqueContents = new Set(orders.map(o => o.content_id).filter(Boolean));
+  const uniqueContentIds = uniqueContents.size;
+  const ordersPerContent = uniqueContentIds > 0 ? totalOrders / uniqueContentIds : 0;
+  
+  // Time Windows
+  let ordersLast7d = 0;
+  let soldLast7d = 0;
+  let ordersDay8to14 = 0;
+  let soldDay8to14 = 0;
+  let ordersDay15to21 = 0;
+  let soldDay15to21 = 0;
+  let ordersOlder = 0;
+  let soldOlder = 0;
+  let minDiff = 999;
+  
+  orders.forEach(o => {
+    const orderTime = new Date(o.order_date).getTime();
+    const ageDays = Math.max(0, (now - orderTime) / 86400000);
+    
+    if (ageDays < minDiff) {
+      minDiff = ageDays;
+    }
+    
+    if (ageDays <= 7) {
+      ordersLast7d++;
+      soldLast7d += o.items_sold || 0;
+    } else if (ageDays <= 14) {
+      ordersDay8to14++;
+      soldDay8to14 += o.items_sold || 0;
+    } else if (ageDays <= 21) {
+      ordersDay15to21++;
+      soldDay15to21 += o.items_sold || 0;
+    } else {
+      ordersOlder++;
+      soldOlder += o.items_sold || 0;
+    }
+  });
+  
+  const daysSinceLastOrder = minDiff === 999 ? 999 : minDiff;
+  
+  // Regularity (Metrik Utama)
+  const salesDates = Array.from(new Set(
+    orders.map(o => {
+      const d = new Date(o.order_date);
+      return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+    })
+  )).sort((a, b) => {
+    const [da, ma, ya] = a.split('/');
+    const [db, mb, yb] = b.split('/');
+    return new Date(`${ya}-${ma}-${da}`).getTime() - new Date(`${yb}-${mb}-${db}`).getTime();
+  });
+  
+  const salesDaysCount = salesDates.length;
+  let totalDaysRange = 0;
+  let salesDensity = 0;
+  let avgGapBetweenSales = 0;
+  let maxGapBetweenSales = 0;
+  let gapStdDev = 0;
+  
+  if (salesDaysCount >= 2) {
+    const [daF, maF, yaF] = salesDates[0].split('/');
+    const [daL, maL, yaL] = salesDates[salesDates.length - 1].split('/');
+    const firstDate = new Date(`${yaF}-${maF}-${daF}`).getTime();
+    const lastDate = new Date(`${yaL}-${maL}-${daL}`).getTime();
+    totalDaysRange = Math.max(1, (lastDate - firstDate) / 86400000) + 1;
+    
+    const gaps: number[] = [];
+    for (let i = 1; i < salesDates.length; i++) {
+      const [daPrev, maPrev, yaPrev] = salesDates[i - 1].split('/');
+      const [daCurr, maCurr, yaCurr] = salesDates[i].split('/');
+      const prev = new Date(`${yaPrev}-${maPrev}-${daPrev}`).getTime();
+      const curr = new Date(`${yaCurr}-${maCurr}-${daCurr}`).getTime();
+      gaps.push((curr - prev) / 86400000);
+    }
+    
+    avgGapBetweenSales = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    maxGapBetweenSales = Math.max(...gaps);
+    const meanGap = avgGapBetweenSales;
+    const variance = gaps.reduce((s, g) => s + (g - meanGap) ** 2, 0) / gaps.length;
+    gapStdDev = Math.sqrt(variance);
+  } else if (salesDaysCount === 1) {
+    totalDaysRange = 1;
+  }
+  
+  // Calculate suspended_days
+  let suspended_days = 0;
+  const history = stockHistory || [];
+  const sortedHist = [...history].sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime());
+  
+  let oosStart: number | null = null;
+  for (const h of sortedHist) {
+    if (h.status === 'out_of_stock') {
+      if (oosStart === null) {
+        oosStart = new Date(h.changed_at).getTime();
+      }
+    } else if (h.status === 'available') {
+      if (oosStart !== null) {
+        const oosEnd = new Date(h.changed_at).getTime();
+        suspended_days += Math.max(0, (oosEnd - oosStart) / 86400000);
+        oosStart = null;
+      }
     }
   }
-  return new Date(ds).getTime() || 0;
+  if (product && product.status === 'habis' && product.last_oos_started_at) {
+    const oosStartTime = new Date(product.last_oos_started_at).getTime();
+    suspended_days += Math.max(0, (now - oosStartTime) / 86400000);
+  } else if (oosStart !== null) {
+    suspended_days += Math.max(0, (now - oosStart) / 86400000);
+  }
+  
+  // Calculate suspended_days_after_last_order
+  let suspended_days_after_last_order = 0;
+  if (orders.length > 0) {
+    const lastOrderTime = new Date(orders[orders.length - 1].order_date).getTime();
+    let oosStartAfterLast: number | null = null;
+    for (const h of sortedHist) {
+      const changeTime = new Date(h.changed_at).getTime();
+      if (changeTime >= lastOrderTime) {
+        if (h.status === 'out_of_stock') {
+          if (oosStartAfterLast === null) {
+            oosStartAfterLast = changeTime;
+          }
+        } else if (h.status === 'available') {
+          if (oosStartAfterLast !== null) {
+            const oosEnd = changeTime;
+            suspended_days_after_last_order += Math.max(0, (oosEnd - oosStartAfterLast) / 86400000);
+            oosStartAfterLast = null;
+          }
+        }
+      }
+    }
+    if (product && product.status === 'habis' && product.last_oos_started_at) {
+      const oosStartTime = new Date(product.last_oos_started_at).getTime();
+      const startTime = Math.max(oosStartTime, lastOrderTime);
+      if (now > startTime) {
+        suspended_days_after_last_order += Math.max(0, (now - startTime) / 86400000);
+      }
+    } else if (oosStartAfterLast !== null) {
+      suspended_days_after_last_order += Math.max(0, (now - oosStartAfterLast) / 86400000);
+    }
+  }
+  
+  // Calculate effective_day_span
+  const effective_day_span = Math.max(1, totalDaysRange - suspended_days);
+  
+  // Calculate routineness_score
+  let regularityScore = 0;
+  if (salesDaysCount >= 1) {
+    regularityScore = effective_day_span <= 3 ? 50 : (salesDaysCount / effective_day_span) * 100;
+    regularityScore = Math.round(Math.min(100, Math.max(0, regularityScore)));
+  }
+  
+  // Shop Ads
+  const shopAdsOrders = orders.filter(o => o.order_type === 'shop_ads').length;
+  const affiliateOrders = orders.filter(o => o.order_type === 'affiliate').length;
+  const shopAdsRatio = totalOrders > 0 ? shopAdsOrders / totalOrders : 0;
+  const isSellerAdvertising = shopAdsRatio > 0.3;
+  
+  // Health
+  const refundRate = totalItemsSold > 0 ? totalRefunded / totalItemsSold : 0;
+  const settledOrders = orders.filter(o => o.settlement_status === 'Settled').length;
+  const settlementRate = totalOrders > 0 ? settledOrders / totalOrders : 0;
+  
+  // Pattern
+  let salesPattern: 'SUSTAINED' | 'MIXED' | 'BURST' | 'NONE' = 'NONE';
+  if (salesDaysCount >= 2) {
+    const dayMap: Record<string, number> = {};
+    orders.forEach(o => {
+      const d = new Date(o.order_date);
+      const k = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+      dayMap[k] = (dayMap[k] || 0) + (o.items_sold || 0);
+    });
+    const dailySales = Object.values(dayMap);
+    const maxDaySales = Math.max(...dailySales);
+    const avgDaySales = dailySales.reduce((s, v) => s + v, 0) / dailySales.length;
+    const burstRatio = avgDaySales > 0 ? maxDaySales / avgDaySales : 0;
+    
+    if (burstRatio > 3) {
+      salesPattern = 'BURST';
+    } else if (burstRatio > 1.5) {
+      salesPattern = 'MIXED';
+    } else {
+      salesPattern = 'SUSTAINED';
+    }
+  }
+  
+  // Calculate contents stats
+  let days_since_first_content = 999;
+  let total_content_made = productContents ? productContents.length : 0;
+  if (productContents && productContents.length > 0) {
+    const dates = productContents
+      .map(c => new Date(c.tanggal_upload).getTime())
+      .filter(Boolean);
+    if (dates.length > 0) {
+      const minDate = Math.min(...dates);
+      days_since_first_content = Math.max(0, (now - minDate) / 86400000);
+    }
+  }
+  
+  const effective_days_since_first = days_since_first_content !== 999
+    ? Math.max(0, days_since_first_content - suspended_days)
+    : 999;
+    
+  const effective_days_since_last = daysSinceLastOrder !== 999
+    ? Math.max(0, daysSinceLastOrder - suspended_days_after_last_order)
+    : 999;
+    
+  // Calculate orders_post_restock
+  let orders_post_restock = 0;
+  if (product && product.last_oos_ended_at) {
+    const restockTime = new Date(product.last_oos_ended_at).getTime();
+    orders_post_restock = orders.filter(o => new Date(o.order_date).getTime() >= restockTime).length;
+  }
+  
+  return {
+    totalOrders,
+    totalItemsSold,
+    totalRefunded,
+    netItemsSold,
+    totalGMV,
+    totalRevenue,
+    avgCommissionRate,
+    avgPrice,
+    uniqueContentIds,
+    ordersPerContent,
+    ordersLast7d,
+    soldLast7d,
+    ordersDay8to14,
+    soldDay8to14,
+    ordersDay15to21,
+    soldDay15to21,
+    ordersOlder,
+    soldOlder,
+    daysSinceLastOrder,
+    salesDaysCount,
+    totalDaysRange,
+    salesDensity: salesDaysCount >= 2 ? salesDaysCount / effective_day_span : 0,
+    avgGapBetweenSales,
+    maxGapBetweenSales,
+    gapStdDev,
+    regularityScore, // routines_score
+    shopAdsOrders,
+    affiliateOrders,
+    shopAdsRatio,
+    isSellerAdvertising,
+    refundRate,
+    settlementRate,
+    salesPattern,
+    // OOS & Effective metrics
+    suspended_days,
+    effective_day_span,
+    effective_days_since_first,
+    effective_days_since_last,
+    orders_post_restock,
+    days_since_first_content,
+    total_content_made
+  };
 }
 
-export interface ComputedProductStats {
-  nVideo: number;
-  spreadDays: number;
-  maxViews: number;
-  avgViews: number;
-  totalItemsSold: number;
-  totalGMV: number;
-  avgCTR: number;
-  avgCTOR: number;
-  uploadDates: string[];
-  gmv_aktif: boolean;
-  salesVideos: number;
-  salesConsistency: number;
-  conversionEfficiency: number;
-  conversionRate: number;
-  bestDays: string[];
-  bestHours: string[];
-  effectiveSold: number;
-  recentSold: number;
-  daysSinceLastSale: number;
-  daysSinceLastContent: number;
-  periodsWithSale: number;
-  latestPeriodSold: number;
-  prevPeriodSold: number;
-  olderPeriodsSold: number;
+export function computeCompositeScore(
+  arg1: OrderBasedProductStats | Product,
+  arg2?: any
+): number {
+  if (arg2 !== undefined) {
+    return (arg2 as any).regularityScore || 0;
+  }
+  const stats = arg1 as OrderBasedProductStats;
+  const routineness_score = stats.regularityScore;
+  
+  let routineness_points = 0;
+  if (routineness_score >= 75) routineness_points = 30;
+  else if (routineness_score >= 50) routineness_points = 22;
+  else if (routineness_score >= 30) routineness_points = 14;
+  else if (routineness_score >= 10) routineness_points = 6;
+  
+  let volume_points = 0;
+  if (stats.totalOrders >= 100) volume_points = 25;
+  else if (stats.totalOrders >= 50) volume_points = 20;
+  else if (stats.totalOrders >= 20) volume_points = 15;
+  else if (stats.totalOrders >= 10) volume_points = 10;
+  else if (stats.totalOrders >= 5) volume_points = 6;
+  else if (stats.totalOrders >= 1) volume_points = 3;
+  
+  let gmv_points = 0;
+  const shopads_pct = stats.shopAdsRatio * 100;
+  if (stats.totalOrders > 0) {
+    if (shopads_pct >= 90) gmv_points = 25;
+    else if (shopads_pct >= 70) gmv_points = 20;
+    else if (shopads_pct >= 50) gmv_points = 14;
+    else if (shopads_pct >= 30) gmv_points = 8;
+    else gmv_points = 3;
+  }
+  
+  let trend_points = 0;
+  const order_trend = 
+    stats.ordersLast7d > stats.ordersDay8to14 * 1.2 ? "growing" :
+    stats.ordersLast7d < stats.ordersDay8to14 * 0.8 ? "declining" :
+    stats.ordersLast7d === 0 && stats.ordersDay8to14 === 0 ? "dead" : "stable";
+
+  if (stats.days_since_first_content <= 7) {
+    trend_points = 12;
+  } else {
+    if (order_trend === "growing") trend_points = 20;
+    else if (order_trend === "stable") trend_points = 14;
+    else if (order_trend === "declining") trend_points = 5;
+    else trend_points = 0;
+  }
+  
+  // Stagnation penalty
+  let stagnasi_penalty = 0;
+  if (stats.effective_days_since_first > 14 && stats.totalOrders === 0) {
+    stagnasi_penalty = Math.min(20, (stats.effective_days_since_first - 14) * 1.5);
+  }
+  
+  if (stats.effective_days_since_last > 21 && stats.ordersLast7d === 0) {
+    stagnasi_penalty += 10;
+  }
+  
+  return Math.round(Math.max(0, Math.min(100, 
+    routineness_points + volume_points + gmv_points + trend_points - stagnasi_penalty
+  )));
 }
 
+export function classifyProduct(
+  stats: OrderBasedProductStats,
+  compositeScore: number,
+  product?: Product | null
+): 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING' {
+  const now = Date.now();
+  const TODAY = now;
+  
+  // 1. COLLABORATION (override tertinggi)
+  if (product && product.is_kerjasama) {
+    const deadline = product.kerjasama_deadline ? new Date(product.kerjasama_deadline).getTime() : null;
+    const target = product.kerjasama_target || 0;
+    const made = stats.total_content_made;
+    if (!deadline || (deadline >= TODAY && made < target)) {
+      return 'COLLABORATION';
+    }
+  }
+  
+  // 2. RESTOCK_CONFIRMED
+  if (product && product.last_oos_ended_at && product.pre_oos_classification) {
+    const restockTime = new Date(product.last_oos_ended_at).getTime();
+    const daysSinceRestock = (now - restockTime) / 86400000;
+    if (daysSinceRestock <= 14 && stats.orders_post_restock >= 1) {
+      if (['PROVEN_WINNER', 'GMV_ACTIVE'].includes(product.pre_oos_classification)) {
+        return product.pre_oos_classification as any;
+      }
+    }
+  }
+  
+  // 3. PROVEN_WINNER
+  if (compositeScore >= 60 && stats.regularityScore >= 50 && stats.totalOrders >= 10) {
+    return 'PROVEN_WINNER';
+  }
+  
+  // 4. GMV_ACTIVE
+  if (compositeScore >= 35 && stats.shopAdsRatio * 100 >= 70 && stats.totalOrders >= 3) {
+    return 'GMV_ACTIVE';
+  }
+  
+  // 5. RESTOCK_RECOVERY
+  if (product && product.last_oos_ended_at && product.pre_oos_classification) {
+    const restockTime = new Date(product.last_oos_ended_at).getTime();
+    const daysSinceRestock = (now - restockTime) / 86400000;
+    if (daysSinceRestock <= 7 && stats.orders_post_restock === 0) {
+      return 'RESTOCK_RECOVERY';
+    }
+  }
+  
+  // 6. GROWING
+  const order_trend = 
+    stats.ordersLast7d > stats.ordersDay8to14 * 1.2 ? "growing" :
+    stats.ordersLast7d < stats.ordersDay8to14 * 0.8 ? "declining" :
+    stats.ordersLast7d === 0 && stats.ordersDay8to14 === 0 ? "dead" : "stable";
+    
+  if (order_trend === 'growing' && stats.totalOrders >= 3) {
+    return 'GROWING';
+  }
+  
+  // 7. EARLY_STAGE
+  if (stats.days_since_first_content <= 14 && stats.total_content_made <= 10) {
+    return 'EARLY_STAGE';
+  }
+  
+  // 8. MONITOR
+  if (compositeScore >= 15) {
+    return 'MONITOR';
+  }
+  
+  // 9. SPIKE_ONLY
+  if (stats.totalOrders >= 5 && stats.regularityScore < 25 && stats.salesDaysCount <= 3) {
+    return 'SPIKE_ONLY';
+  }
+  
+  // 10. STAGNANT
+  const lastOosEndedTime = product && product.last_oos_ended_at ? new Date(product.last_oos_ended_at).getTime() : null;
+  const isWithinRecovery = lastOosEndedTime && ((now - lastOosEndedTime) / 86400000 <= 7);
+  if (stats.effective_days_since_first > 14 && stats.totalOrders === 0) {
+    if (!isWithinRecovery) {
+      return 'STAGNANT';
+    }
+  }
+  
+  // 11. DECLINING
+  if (order_trend === 'declining' && stats.effective_days_since_last > 14) {
+    if (!isWithinRecovery) {
+      return 'DECLINING';
+    }
+  }
+  
+  return 'MONITOR';
+}
+
+export function calcWeeklyQuota(
+  klasifikasi: 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING',
+  compositeScore: number,
+  isKerjasama: boolean,
+  kerjasamaTarget: number
+): number {
+  if (isKerjasama && kerjasamaTarget > 0) {
+    return kerjasamaTarget;
+  }
+  
+  switch (klasifikasi) {
+    case 'PROVEN_WINNER':
+      return compositeScore >= 70 ? 5 : 3;
+    case 'GMV_ACTIVE':
+    case 'RESTOCK_CONFIRMED':
+      return 3;
+    case 'GROWING':
+    case 'EARLY_STAGE':
+    case 'RESTOCK_RECOVERY':
+      return 2;
+    case 'MONITOR':
+    case 'SPIKE_ONLY':
+    case 'DECLINING':
+      return 1;
+    case 'STAGNANT':
+      return 0;
+    default:
+      return 1;
+  }
+}
+
+export function generateRecommendation(
+  klasifikasi: 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING',
+  stats: OrderBasedProductStats
+): string {
+  switch (klasifikasi) {
+    case 'COLLABORATION':
+      return "Produk kerjasama aktif. Buat konten sesuai target dan deadline kerjasama.";
+    case 'PROVEN_WINNER':
+      if (stats.isSellerAdvertising) {
+        return "Seller aktif beriklan (GMV Max). Perbanyak variasi konten untuk memperbesar peluang kesambar iklan.";
+      }
+      return "Produk proven. Tingkatkan kuota posting untuk memaksimalkan revenue.";
+    case 'GMV_ACTIVE':
+      return "Seller sangat aktif GMV Max dan produk menghasilkan order. Prioritaskan konten.";
+    case 'RESTOCK_CONFIRMED':
+      return "Produk terbukti aktif kembali pasca restock. Lanjutkan distribusi konten.";
+    case 'RESTOCK_RECOVERY':
+      return "Produk baru saja restock, belum ada order. Buat konten untuk memicu kembali traffic.";
+    case 'GROWING':
+      return "Tren penjualan meningkat. Dorong kuota konten untuk mengakselerasi pertumbuhan.";
+    case 'EARLY_STAGE':
+      return "Produk baru. Buat 2 konten evaluasi minggu ini.";
+    case 'MONITOR':
+      return "Performa stabil/sedang. Pantau tren penjualan secara berkala.";
+    case 'SPIKE_ONLY':
+      return "Order tidak rutin dan terpusat di hari tertentu. Buat konten berkala.";
+    case 'STAGNANT':
+      return "Tidak produktif setelah waktu evaluasi. Hentikan pembuatan konten dan alihkan ke produk lain.";
+    case 'DECLINING':
+      return `Sudah ${Math.round(stats.daysSinceLastOrder)} hari tanpa order (efektif). Batasi kuota konten.`;
+    default:
+      return "Analisa performa produk.";
+  }
+}
+
+// compatibility wrappers
+export function recomputeFromOrders(
+  products: Product[],
+  orders: Order[]
+): Record<string, OrderBasedProductStats> {
+  const statsMap: Record<string, OrderBasedProductStats> = {};
+  
+  // Inisialisasi default stats
+  products.forEach(p => {
+    const productOrders = orders.filter(o => o.product_id === p.id);
+    statsMap[p.id] = computeOrderBasedStats(productOrders);
+  });
+  
+  return statsMap;
+}
+
+// Compatibility wrapper for old recomputeProductStats (migrates contents/snapshots to dummy orders to avoid breakages in legacy modules)
 export function recomputeProductStats(
   products: Product[],
-  contents: (Content & { period_snapshots?: PeriodSnapshot[] })[]
-): Record<string, ComputedProductStats> {
-  const now = Date.now();
-  const statsMap: Record<string, ComputedProductStats> = {};
+  contents: any[]
+): Record<string, any> {
+  // Map contents back to order shape for scoring engine
+  const dummyOrders: Order[] = [];
+  
+  contents.forEach(c => {
+    if (c.items_sold > 0) {
+      for (let i = 0; i < c.items_sold; i++) {
+        dummyOrders.push({
+          id: `dummy_${c.id}_${i}`,
+          user_id: c.user_id,
+          tiktok_order_id: `dummy_order_${c.id}_${i}`,
+          product_id: c.product_id,
+          content_id: c.id,
+          sku_id: null,
+          product_name: null,
+          items_sold: 1,
+          items_refunded: 0,
+          price: c.gmv / c.items_sold,
+          gmv: c.gmv / c.items_sold,
+          order_type: 'affiliate',
+          settlement_status: 'Settled',
+          commission_rate: 10,
+          est_commission: c.est_komisi / c.items_sold,
+          actual_commission: c.est_komisi / c.items_sold,
+          total_final_earned: c.est_komisi / c.items_sold,
+          shop_name: null,
+          shop_code: null,
+          order_date: c.tanggal_upload || new Date().toISOString(),
+          settlement_date: null,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+  });
 
-  // Inisialisasi default stats untuk semua produk
-  products.forEach((p) => {
-    statsMap[p.id] = {
-      nVideo: 0,
-      spreadDays: 0,
+  const stats = recomputeFromOrders(products, dummyOrders);
+  // Map back compatibility keys
+  const compatStats: Record<string, any> = {};
+  Object.entries(stats).forEach(([k, v]) => {
+    compatStats[k] = {
+      ...v,
+      nVideo: v.uniqueContentIds,
+      spreadDays: v.salesDaysCount,
       maxViews: 0,
       avgViews: 0,
-      totalItemsSold: 0,
-      totalGMV: 0,
       avgCTR: 0,
       avgCTOR: 0,
-      uploadDates: [],
-      gmv_aktif: false,
-      salesVideos: 0,
-      salesConsistency: 0,
-      conversionEfficiency: 0,
-      conversionRate: 0,
-      bestDays: [],
-      bestHours: [],
-      effectiveSold: 0,
-      recentSold: 0,
-      daysSinceLastSale: 999,
+      effectiveSold: v.netItemsSold,
+      recentSold: v.soldLast7d,
+      daysSinceLastSale: v.daysSinceLastOrder,
       daysSinceLastContent: 999,
       periodsWithSale: 0,
-      latestPeriodSold: 0,
-      prevPeriodSold: 0,
-      olderPeriodsSold: 0,
+      latestPeriodSold: v.soldLast7d,
+      prevPeriodSold: v.soldDay8to14,
+      olderPeriodsSold: v.soldDay15to21 + v.soldOlder,
+      bestDays: [],
+      bestHours: []
     };
   });
-
-  // Kelompokkan konten berdasarkan product_id
-  const byProd: Record<string, (Content & { period_snapshots?: PeriodSnapshot[] })[]> = {};
-  contents.forEach((c) => {
-    if (c.product_id) {
-      if (!byProd[c.product_id]) byProd[c.product_id] = [];
-      byProd[c.product_id].push(c);
-    }
-  });
-
-  products.forEach((prod) => {
-    const rows = byProd[prod.id] || [];
-    if (!rows.length) return;
-
-    // Urutkan konten dari terlama ke terbaru
-    rows.sort((a, b) => {
-      const da = parseDate(a.tanggal_upload) || a.created_at ? new Date(a.created_at).getTime() : 0;
-      const db = parseDate(b.tanggal_upload) || b.created_at ? new Date(b.created_at).getTime() : 0;
-      return da - db;
-    });
-
-    const stats = statsMap[prod.id];
-    let totalWeightedViews = 0;
-    let totalWeight = 0;
-    let totalViewsRaw = 0;
-    const dayAff: Record<string, { s: number; v: number }> = {};
-    const hourAff: Record<string, { s: number; v: number }> = {};
-
-    rows.forEach((c) => {
-      const postDate = parseDate(c.tanggal_upload) || new Date(c.created_at).getTime();
-      const ageContentDays = Math.max(0, (now - postDate) / 86400000);
-      const decayContent = Math.max(0.2, 1 - ageContentDays / 60);
-
-      stats.nVideo++;
-      stats.maxViews = Math.max(stats.maxViews, c.views || 0);
-      totalViewsRaw += c.views || 0;
-
-      const dateOnly = c.tanggal_upload ? c.tanggal_upload.split("T")[0] : "";
-      if (dateOnly && !stats.uploadDates.includes(dateOnly)) {
-        stats.uploadDates.push(dateOnly);
-      }
-
-      totalWeightedViews += (c.views || 0) * decayContent;
-      totalWeight += decayContent;
-
-      stats.totalItemsSold += c.items_sold || 0;
-      stats.totalGMV += c.gmv || 0;
-      if ((c.gmv || 0) > 0) stats.gmv_aktif = true;
-
-      if ((c.items_sold || 0) > 0) stats.salesVideos++;
-
-      // Sales Decay
-      const salesDecay = Math.max(DECAY_FLOOR, 1 - ageContentDays / DECAY_HALF_LIFE);
-      stats.effectiveSold += (c.items_sold || 0) * salesDecay;
-
-      // recentSold
-      if (ageContentDays <= 14) {
-        stats.recentSold += c.items_sold || 0;
-      }
-
-      // daysSinceLastSale
-      if ((c.items_sold || 0) > 0) {
-        stats.daysSinceLastSale = Math.min(stats.daysSinceLastSale, ageContentDays);
-      }
-
-      // daysSinceLastContent
-      stats.daysSinceLastContent = Math.min(stats.daysSinceLastContent, ageContentDays);
-
-      // Afinitas Hari
-      const dateObj = new Date(postDate);
-      const dName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][dateObj.getDay()];
-      if (!dayAff[dName]) dayAff[dName] = { s: 0, v: 0 };
-      dayAff[dName].s += c.items_sold || 0;
-      dayAff[dName].v += c.views || 0;
-
-      // Afinitas Jam
-      const hours = dateObj.getHours().toString().padStart(2, "0") + ":00";
-      if (!hourAff[hours]) hourAff[hours] = { s: 0, v: 0 };
-      hourAff[hours].s += c.items_sold || 0;
-      hourAff[hours].v += c.views || 0;
-
-      // EMA (Exponential Moving Average)
-      stats.avgCTR = stats.avgCTR ? stats.avgCTR * 0.3 + (c.ctr || 0) * 0.7 : c.ctr || 0;
-      stats.avgCTOR = stats.avgCTOR ? stats.avgCTOR * 0.3 + (c.ctor || 0) * 0.7 : c.ctor || 0;
-    });
-
-    stats.spreadDays = stats.uploadDates.length;
-    stats.avgViews = totalWeight > 0 ? totalWeightedViews / totalWeight : 0;
-    stats.salesConsistency = stats.nVideo > 0 ? stats.salesVideos / stats.nVideo : 0;
-    stats.conversionEfficiency = totalViewsRaw > 0 ? (stats.totalItemsSold / totalViewsRaw) * 10000 : 0;
-    stats.conversionRate = totalViewsRaw > 0 ? (stats.totalItemsSold / totalViewsRaw) * 100 : 0;
-
-    // Period-based metrics
-    const periodSoldMap: Record<string, { sold: number; pEnd: number }> = {};
-    rows.forEach((c) => {
-      (c.period_snapshots || []).forEach((snap) => {
-        const pStart = new Date(snap.period_start).getTime();
-        const pEnd = new Date(snap.period_end).getTime();
-        const key = `${pStart}-${pEnd}`;
-        if (!periodSoldMap[key]) {
-          periodSoldMap[key] = { sold: 0, pEnd };
-        }
-        periodSoldMap[key].sold += snap.items_sold || 0;
-      });
-    });
-
-    const periodEntries = Object.values(periodSoldMap);
-    stats.periodsWithSale = periodEntries.filter((pe) => pe.sold > 0).length;
-
-    // Urutkan periode dari yang terbaru
-    periodEntries.sort((a, b) => b.pEnd - a.pEnd);
-
-    if (periodEntries.length >= 1) stats.latestPeriodSold = periodEntries[0].sold;
-    if (periodEntries.length >= 2) stats.prevPeriodSold = periodEntries[1].sold;
-    if (periodEntries.length >= 3) {
-      stats.olderPeriodsSold = periodEntries.slice(2).reduce((s, pe) => s + pe.sold, 0);
-    }
-
-    // Afinitas Waktu (Hari & Jam Terbaik)
-    stats.bestDays = Object.entries(dayAff)
-      .sort((a, b) => b[1].s - a[1].s || b[1].v - a[1].v)
-      .slice(0, 2)
-      .map((e) => e[0]);
-
-    stats.bestHours = Object.entries(hourAff)
-      .sort((a, b) => b[1].s - a[1].s || b[1].v - a[1].v)
-      .slice(0, 2)
-      .map((e) => e[0]);
-  });
-
-  return statsMap;
+  return compatStats;
 }
 
 export function scoreBenchmark(
   products: Product[],
-  statsMap: Record<string, ComputedProductStats>
+  statsMap: Record<string, any>
 ): void {
-  if (!products.length) return;
-
-  const maxN = Math.max(...products.map((p) => statsMap[p.id]?.nVideo || 0), 1);
-  const maxSp = Math.max(...products.map((p) => statsMap[p.id]?.spreadDays || 0), 1);
-  const maxV = Math.max(...products.map((p) => statsMap[p.id]?.maxViews || 0), 1);
-
-  products.forEach((p) => {
-    const stats = statsMap[p.id];
-    if (!stats) return;
-
-    const hasPrestasi = p.label_prestasi && p.label_prestasi !== "-" ? 1 : 0;
-    const score =
-      (stats.nVideo / maxN) * W_BENCH.nVideo * 100 +
-      (stats.spreadDays / maxSp) * W_BENCH.spreadDays * 100 +
-      hasPrestasi * W_BENCH.hasPrestasi * 100 +
-      (stats.maxViews / maxV) * W_BENCH.maxViews * 100;
-
-    p.bench_score = Math.round(score * 10) / 10;
-    p.topsis_score = 0;
-    p.score_mode = "benchmark";
+  products.forEach(p => {
+    const s = statsMap[p.id];
+    if (s) {
+      p.bench_score = s.regularityScore || 0;
+    }
   });
 }
 
 export function scoreTOPSIS(
   products: Product[],
-  statsMap: Record<string, ComputedProductStats>
+  statsMap: Record<string, any>
 ): void {
-  if (!products.length) return;
-
-  const keys = Object.keys(W_TOPSIS) as (keyof typeof W_TOPSIS)[];
-
-  // Log-dampening untuk parameter berskala besar
-  const raw = products.map((p) => {
-    const stats = statsMap[p.id] || { avgCTOR: 0, avgCTR: 0, effectiveSold: 0, nVideo: 0, conversionRate: 0 };
-    return {
-      avgCTOR: stats.avgCTOR || 0,
-      avgCTR: stats.avgCTR || 0,
-      totalItemsSold: Math.log1p(stats.effectiveSold || 0),
-      totalGMV: 0, // bobot 0
-      nVideo: Math.log1p(stats.nVideo || 0),
-      conversionRate: stats.conversionRate || 0,
-    };
-  });
-
-  const colNorm: Record<string, number> = {};
-  keys.forEach((k) => {
-    const sumSq = raw.reduce((s, r) => s + (r[k as keyof typeof r] || 0) ** 2, 0);
-    colNorm[k] = Math.sqrt(sumSq) || 1;
-  });
-
-  const wn = raw.map((r) => {
-    const row: Record<string, number> = {};
-    keys.forEach((k) => {
-      row[k] = ((r[k as keyof typeof r] || 0) / colNorm[k]) * W_TOPSIS[k];
-    });
-    return row;
-  });
-
-  const Ap: Record<string, number> = {};
-  const Am: Record<string, number> = {};
-  keys.forEach((k) => {
-    Ap[k] = Math.max(...wn.map((r) => r[k]));
-    Am[k] = Math.min(...wn.map((r) => r[k]));
-  });
-
-  const dP = wn.map((r) =>
-    Math.sqrt(keys.reduce((s, k) => s + (r[k] - Ap[k]) ** 2, 0))
-  );
-  const dM = wn.map((r) =>
-    Math.sqrt(keys.reduce((s, k) => s + (r[k] - Am[k]) ** 2, 0))
-  );
-
-  products.forEach((p, i) => {
-    const t = dP[i] + dM[i];
-    p.topsis_score = t > 0 ? Math.round((dM[i] / t) * 1000) / 1000 : 0;
-    p.bench_score = Math.round(p.topsis_score * 100);
-    p.score_mode = "topsis";
+  products.forEach(p => {
+    const s = statsMap[p.id];
+    if (s) {
+      p.topsis_score = (s.regularityScore || 0) / 100;
+    }
   });
 }
 
-export function calcEfficiencyMult(effectiveSold: number, nVideo: number): number {
-  if (nVideo <= 3) return 1.0; // Fase uji coba
-  const yield_ = effectiveSold / nVideo;
-  if (yield_ >= 0.8) return 1.15;
-  if (yield_ >= 0.4) return 1.0;
-  if (yield_ >= 0.15) return 0.85;
-  if (yield_ > 0) return 0.7;
-  return 0.5; // Saturasi
-}
-
-export function calcMomentumMult(
-  latestPeriodSold: number,
-  prevPeriodSold: number,
-  olderPeriodsSold: number,
-  hasEverSold: boolean
-): number {
-  if (latestPeriodSold > 0 && prevPeriodSold > 0) {
-    const ratio = latestPeriodSold / prevPeriodSold;
-    return Math.max(0.6, Math.min(1.3, ratio));
-  }
-  if (latestPeriodSold > 0 && prevPeriodSold === 0) return 1.2;
-  if (latestPeriodSold === 0 && prevPeriodSold > 0) return 0.6;
-  if (olderPeriodsSold > 0) return 0.5;
-  if (!hasEverSold) return 0.85;
-  return 0.5;
-}
-
-export function calcFreshnessMult(
-  daysSinceLastSale: number,
-  daysSinceLastContent: number,
-  hasEverSold: boolean
-): number {
-  let saleFresh = 0.2;
-  if (!hasEverSold) saleFresh = 0.7;
-  else if (daysSinceLastSale <= 7) saleFresh = 1.0;
-  else if (daysSinceLastSale <= 14) saleFresh = 0.85;
-  else if (daysSinceLastSale <= 21) saleFresh = 0.65;
-  else if (daysSinceLastSale <= 35) saleFresh = 0.4;
-
-  let contentFresh = 0.7;
-  if (daysSinceLastContent <= 7) contentFresh = 1.0;
-  else if (daysSinceLastContent <= 14) contentFresh = 0.9;
-  else if (daysSinceLastContent <= 21) contentFresh = 0.8;
-
-  if (!hasEverSold) return contentFresh;
-  return saleFresh * 0.7 + contentFresh * 0.3;
-}
-
-export function computeCompositeScore(
-  p: Product,
-  stats: ComputedProductStats
-): number {
-  const base = p.topsis_score * 100;
-  const eff = calcEfficiencyMult(stats.effectiveSold, stats.nVideo);
-  const mom = calcMomentumMult(
-    stats.latestPeriodSold,
-    stats.prevPeriodSold,
-    stats.olderPeriodsSold,
-    stats.totalItemsSold > 0
-  );
-  const fresh = calcFreshnessMult(
-    stats.daysSinceLastSale,
-    stats.daysSinceLastContent,
-    stats.totalItemsSold > 0
-  );
-
-  const finalScore = Math.min(100, Math.round(base * eff * mom * fresh));
-  p.bench_score = finalScore; // Update bench_score untuk UI sorting
-  return finalScore;
-}
+// computeCompositeScore is overloaded above
 
 export function classifyP(
   p: Product,
-  stats: ComputedProductStats,
-  mode: "benchmark" | "topsis"
-): "WINNING" | "POTENTIAL" | "MONITOR" | "DROP" {
-  if (stats.nVideo === 0) return "MONITOR"; // Fallback safe, setara UJI COBA
-
-  if (mode === "topsis") {
-    const cs = p.bench_score || 0; // compositeScore disimpan di bench_score
-    const es = stats.effectiveSold || 0;
-    const rs = stats.recentSold || 0;
-    const rawSold = stats.totalItemsSold || 0;
-    const dsls = stats.daysSinceLastSale;
-    const n = stats.nVideo || 0;
-    const mv = stats.maxViews || 0;
-    const ctr = stats.avgCTR || 0;
-    const ctor = stats.avgCTOR || 0;
-    const pws = stats.periodsWithSale || 0;
-
-    // OVERRIDES
-    if (n >= 5 && rawSold === 0 && mv < 3000) return "DROP";
-    if (rawSold > 0 && dsls > 35 && rs === 0) return "MONITOR";
-    if (n >= 3 && mv < 2000 && ctr === 0 && ctor === 0 && rawSold === 0) return "DROP";
-
-    // WINNING
-    if (cs >= 50 && es >= 2) return "WINNING";
-    if (cs >= 35 && es >= 3) return "WINNING";
-    if (pws >= 3 && rs >= 1) return "WINNING";
-    if (es >= 4 && dsls <= 14) return "WINNING";
-
-    // POTENTIAL
-    if (cs >= 25 && es >= 1) return "POTENTIAL";
-    if (cs >= 35) return "POTENTIAL";
-    if (pws >= 2) return "POTENTIAL";
-    if (es >= 0.8 && n >= 2) return "POTENTIAL";
-    if (ctr >= 2.0 && n >= 2 && mv >= 1000) return "POTENTIAL";
-
-    return "MONITOR";
-  }
-
-  // Benchmark classification
-  const n = stats.nVideo || 0;
-  const rawSold = stats.totalItemsSold || 0;
-  const mv = stats.maxViews || 0;
-  const ctr = stats.avgCTR || 0;
-
-  if (n >= 5 || (n >= 3 && rawSold > 0)) return "WINNING";
-  if (n >= 3 && mv < 2000 && ctr === 0 && rawSold === 0) return "DROP";
-  if (n >= 3 || (n >= 2 && ctr > 0)) return "POTENTIAL";
-  return "MONITOR";
+  stats: any,
+  mode: any
+): 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING' {
+  const compositeScore = p.score_mode === 'topsis' ? p.topsis_score * 100 : p.bench_score;
+  return classifyProduct(stats, compositeScore, p);
 }
 
-export function slotR(k: string): string {
-  return k === "WINNING"
-    ? "16:00/18:00"
-    : k === "POTENTIAL"
-    ? "10:00/14:00"
-    : k === "DROP"
-    ? "—"
-    : "08:00/12:00";
+export function slotR(klas: 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING'): string {
+  switch (klas) {
+    case 'COLLABORATION':
+    case 'PROVEN_WINNER':
+    case 'RESTOCK_CONFIRMED':
+    case 'GMV_ACTIVE':
+      return "18:00/20:00"; // Prime
+    case 'GROWING':
+    case 'MONITOR':
+      return "10:00/12:00"; // Regular
+    case 'EARLY_STAGE':
+    case 'RESTOCK_RECOVERY':
+      return "06:30/09:00"; // Testing
+    case 'SPIKE_ONLY':
+    case 'DECLINING':
+      return "10:00"; // Regular single
+    case 'STAGNANT':
+      return "—";
+    default:
+      return "—";
+  }
 }

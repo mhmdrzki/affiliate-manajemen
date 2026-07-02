@@ -1,14 +1,17 @@
 // /*
-// Tujuan: Halaman UI Pengaturan (Server Component) untuk memuat profil pengguna dari Supabase dan merender form pengaturan.
+// Tujuan: Halaman UI Pengaturan (Server Component) untuk memuat profil pengguna dari SQLite lokal dan merender form pengaturan.
 // Caller: Route /settings
-// Dependensi: lib/supabase/server.ts, types/index.ts, components/settings/SettingsForm.tsx, components/layout/Topbar.tsx
+// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, components/settings/SettingsForm.tsx, components/layout/Topbar.tsx
 // Main Functions: SettingsPage
-// Side Effects: Mengambil data profil dari database Supabase.
+// Side Effects: Mengambil data profil dari database SQLite lokal.
 // */
 
 import React from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import SettingsForm from "@/components/settings/SettingsForm";
 import Topbar from "@/components/layout/Topbar";
 import { Profile } from "@/types";
@@ -26,13 +29,13 @@ export default async function SettingsPage() {
   }
 
   // 2. Fetch User Profile
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const profile = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .then(rows => rows[0]);
 
-  if (error || !profile) {
+  if (!profile) {
     // Fallback jika profile belum terbentuk (safety check)
     const fallbackProfile: Profile = {
       id: user.id,
@@ -64,3 +67,4 @@ export default async function SettingsPage() {
     </div>
   );
 }
+

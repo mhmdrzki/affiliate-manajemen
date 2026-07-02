@@ -1,5 +1,5 @@
 // /*
-// Tujuan: Menganalisa pola anomali performa produk berdasarkan kombinasi data master dan statistik terhitung.
+// Tujuan: Menganalisa pola anomali performa produk berdasarkan kombinasi data master dan statistik order TikTok.
 // Caller: Dashboard render, KPI alerts
 // Dependensi: types/index.ts, lib/scoring/engine.ts
 // Main Functions: detectAnomalies
@@ -7,7 +7,7 @@
 // */
 
 import { Product } from "@/types";
-import { ComputedProductStats } from "./engine";
+import { OrderBasedProductStats } from "./engine";
 
 export interface Anomaly {
   type: string;
@@ -16,9 +16,9 @@ export interface Anomaly {
 
 export function detectAnomalies(
   products: Product[],
-  statsMap: Record<string, ComputedProductStats>
+  statsMap: Record<string, OrderBasedProductStats>
 ): Anomaly[] {
-  const al: Anomaly[] = [];
+  const anomalies: Anomaly[] = [];
 
   products.forEach((p) => {
     const stats = statsMap[p.id];
@@ -26,74 +26,63 @@ export function detectAnomalies(
 
     const shortName = p.jenis || p.nama.substring(0, 22);
 
-    // 1. GMV Max signal: view meledak tapi CTR/CTOR rendah & baru 1x upload
-    if (stats.maxViews > 10000 && stats.avgCTOR < 0.3 && stats.nVideo === 1) {
-      al.push({
-        type: "gmvmax",
-        msg: `<strong>${shortName}</strong> — views ${stats.maxViews.toLocaleString("id")} tapi CTOR rendah & baru 1× upload. Kemungkinan mendapatkan traffic iklan GMV Max. Disarankan cek apakah seller beriklan.`,
+    // 1. REFUND_ALERT: refundRate > 10% dan minimal ada 3 order
+    if (stats.refundRate > 0.10 && stats.totalOrders >= 3) {
+      anomalies.push({
+        type: "refund_alert",
+        msg: `<strong>${shortName}</strong> — Tingkat refund sangat tinggi (${(stats.refundRate * 100).toFixed(0)}%). Segera review kualitas produk dengan seller/toko <strong>${p.shop_name || "seller"}</strong>.`,
       });
     }
 
-    // 2. Hidden winner: CTOR tinggi tapi jarang di-upload
-    if (stats.avgCTOR >= 1.0 && stats.nVideo <= 2) {
-      al.push({
-        type: "hidden",
-        msg: `<strong>${shortName}</strong> — CTOR ${stats.avgCTOR.toFixed(1)}% tapi baru ${stats.nVideo}× upload. Kandidat Winning tersembunyi — push posting konten lebih sering!`,
+    // 2. SHOP_ADS_CHAMPION: shopAdsRatio > 80% dan total orders >= 5
+    if (stats.shopAdsRatio > 0.80 && stats.totalOrders >= 5) {
+      anomalies.push({
+        type: "shop_ads_champion",
+        msg: `<strong>${shortName}</strong> — ${Math.round(stats.shopAdsRatio * 100)}% penjualan berasal dari Shop Ads (GMV Max). Seller sangat aktif beriklan, PUSH pembuatan konten agar mendapat limpahan traffic iklan!`,
       });
     }
 
-    // 3. Momentum Drop (Topsis Mode)
-    // momentumMult dihitung di composite score. Karena di Next.js kita simpan computed multipliers secara live,
-    // mari kita hitung momentumMult secara internal atau ambil dari DB (dalam schema kita, p.computed_scores bisa menyimpan ini,
-    // atau kita re-calculate di sini menggunakan helper engine.ts)
-    // Mari kita re-calculate momentum untuk anomali:
-    const hasEverSold = stats.totalItemsSold > 0;
-    const latestPeriodSold = stats.latestPeriodSold || 0;
-    const prevPeriodSold = stats.prevPeriodSold || 0;
-    
-    if (p.score_mode === "topsis" && latestPeriodSold === 0 && prevPeriodSold > 0) {
-      al.push({
-        type: "momentumdrop",
-        msg: `<strong>${shortName}</strong> — Penurunan momentum penjualan tajam terdeteksi (0 sales periode ini vs ${prevPeriodSold} sebelumnya). Kurangi kuota jadwal posting.`,
+    // 3. MOMENTUM_ROCKET: penjualan naik drastis minggu ini dibanding minggu lalu
+    if (stats.soldDay8to14 > 0 && stats.soldLast7d >= stats.soldDay8to14 * 2) {
+      const multiplier = (stats.soldLast7d / stats.soldDay8to14).toFixed(1);
+      anomalies.push({
+        type: "momentum_rocket",
+        msg: `<strong>${shortName}</strong> — Kenaikan momentum penjualan ${multiplier}× terdeteksi minggu ini (${stats.soldLast7d} unit vs ${stats.soldDay8to14} unit). Tingkatkan prioritas slot jadwal.`,
       });
     }
 
-    // 4. Content Saturation (Saturasi)
-    if (p.score_mode === "topsis" && stats.nVideo >= 4 && stats.totalItemsSold === 0) {
-      al.push({
-        type: "saturation",
-        msg: `<strong>${shortName}</strong> — Saturasi konten terdeteksi (${stats.nVideo} video, 0 sales efektif). Disarankan ganti status produk ke DROP.`,
+    // 4. DYING_PRODUCT: tidak ada order dalam 14 hari terakhir padahal sebelumnya produktif
+    if (stats.daysSinceLastOrder > 14 && stats.totalOrders >= 3 && p.klasifikasi !== 'STAGNANT') {
+      anomalies.push({
+        type: "dying_product",
+        msg: `<strong>${shortName}</strong> — Sudah ${Math.round(stats.daysSinceLastOrder)} hari tanpa penjualan baru. Kurangi kuota jadwal posting dan alihkan fokus ke produk potensial lain.`,
       });
     }
 
-    // 5. Trending New Product
-    if (p.score_mode === "topsis" && stats.effectiveSold >= 1.5 && stats.nVideo <= 2) {
-      al.push({
-        type: "trending",
-        msg: `<strong>${shortName}</strong> — Produk baru trending dengan sales efektif ${stats.effectiveSold.toFixed(1)} dari hanya ${stats.nVideo} video. Disarankan tambah kuota jadwal posting!`,
+    // 5. NEW_TRACTION: produk berstatus NEW/Early/Recovery tapi sudah menghasilkan penjualan
+    if ((p.klasifikasi === 'EARLY_STAGE' || p.klasifikasi === 'RESTOCK_RECOVERY') && stats.totalOrders >= 1) {
+      anomalies.push({
+        type: "new_traction",
+        msg: `<strong>${shortName}</strong> — Produk baru berhasil mencetak order pertama! Berikan slot testing tambahan untuk mengukur konsistensi penjualan.`,
+      });
+    }
+
+    // 6. LOW_COMMISSION: Penjualan lumayan tapi tingkat komisi di bawah 5%
+    if (stats.avgCommissionRate < 5 && stats.netItemsSold >= 5) {
+      anomalies.push({
+        type: "low_commission",
+        msg: `<strong>${shortName}</strong> — Penjualan bagus (${stats.netItemsSold} unit) namun rata-rata komisi rendah (${stats.avgCommissionRate.toFixed(1)}%). Cari alternatif produk sejenis dengan komisi lebih tinggi.`,
+      });
+    }
+
+    // 7. BURST_WARNING: Pola penjualan burst (ramai lalu mati mendadak)
+    if (stats.salesPattern === 'BURST' && p.klasifikasi !== 'STAGNANT' && stats.soldLast7d === 0) {
+      anomalies.push({
+        type: "burst_warning",
+        msg: `<strong>${shortName}</strong> — Pola penjualan bertipe BURST (penjualan melonjak satu hari lalu mati). Kurangi prioritas penjadwalan sebelum trend benar-benar hilang.`,
       });
     }
   });
 
-  // 6. Cluster GMV aktif
-  const gmvPs = products.filter((p) => p.gmv_aktif);
-  if (gmvPs.length >= 3) {
-    al.push({
-      type: "seller",
-      msg: `<strong>${gmvPs.length} produk</strong> dari seller dengan GMV Max aktif terdeteksi. Prioritaskan penjadwalan produk ini untuk minggu depan.`,
-    });
-  }
-
-  // 7. Winning product tanpa isi konten
-  const noContent = products.filter(
-    (p) => p.klasifikasi === "WINNING" && (!p.desc_variants || p.desc_variants.length === 0)
-  );
-  if (noContent.length > 0) {
-    al.push({
-      type: "content",
-      msg: `<strong>${noContent.length} produk Winning</strong> belum memiliki deskripsi naskah konten AI. Silakan buka detail produk dan lakukan Generate Deskripsi AI.`,
-    });
-  }
-
-  return al;
+  return anomalies;
 }

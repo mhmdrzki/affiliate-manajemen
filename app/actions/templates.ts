@@ -1,14 +1,17 @@
 // /*
-// Tujuan: Server Actions untuk pengelolaan bank template naskah video (Hook, Proof, CTA) per-kategori milik pengguna.
+// Tujuan: Server Actions untuk pengelolaan bank template naskah video (Hook, Proof, CTA) per-kategori milik pengguna di SQLite lokal.
 // Caller: Halaman manajemen template (/templates), Generator Jadwal (/schedule)
-// Dependensi: lib/supabase/server.ts, types/index.ts
+// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts
 // Main Functions: getTemplatesAction, addTemplateAction, deleteTemplateAction, resetTemplatesToDefaultAction
-// Side Effects: Membaca, menulis, atau menghapus record di tabel templates.
+// Side Effects: Membaca, menulis, atau menghapus record di tabel templates di SQLite lokal.
 // */
 
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { templates } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { Template } from "@/types";
 
 const DEF_HOOKS = [
@@ -66,14 +69,13 @@ export async function getTemplatesAction(): Promise<Template[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from("templates")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  const list = await db
+    .select()
+    .from(templates)
+    .where(eq(templates.user_id, user.id))
+    .orderBy(desc(templates.created_at));
 
-  if (error) throw error;
-  return data || [];
+  return list as unknown as Template[];
 }
 
 // Add new template
@@ -86,19 +88,22 @@ export async function addTemplateAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
-  const { data, error } = await supabase
-    .from("templates")
-    .insert({
+  try {
+    const newTemplate = {
+      id: crypto.randomUUID(),
       user_id: user.id,
       type,
       content,
       kategori,
-    })
-    .select()
-    .single();
+      created_at: new Date().toISOString(),
+    };
 
-  if (error) return { success: false, error: error.message };
-  return { success: true, data };
+    await db.insert(templates).values(newTemplate);
+
+    return { success: true, data: newTemplate as any };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
 }
 
 // Delete template
@@ -107,14 +112,15 @@ export async function deleteTemplateAction(id: string): Promise<{ success: boole
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("templates")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
+  try {
+    await db
+      .delete(templates)
+      .where(and(eq(templates.id, id), eq(templates.user_id, user.id)));
 
-  if (error) return { success: false, error: error.message };
-  return { success: true };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
 }
 
 // Reset templates to default
@@ -125,29 +131,21 @@ export async function resetTemplatesToDefaultAction(): Promise<{ success: boolea
 
   try {
     // 1. Delete all current user templates
-    const { error: delErr } = await supabase
-      .from("templates")
-      .delete()
-      .eq("user_id", user.id);
-
-    if (delErr) throw delErr;
+    await db.delete(templates).where(eq(templates.user_id, user.id));
 
     // 2. Prepare default records
     const templatesToInsert = [
-      ...DEF_HOOKS.map((h) => ({ user_id: user.id, type: "hook", content: h.content, kategori: h.kategori })),
-      ...DEF_PROOFS.map((p) => ({ user_id: user.id, type: "proof", content: p.content, kategori: p.kategori })),
-      ...DEF_CTAS.map((c) => ({ user_id: user.id, type: "cta", content: c.content, kategori: c.kategori })),
+      ...DEF_HOOKS.map((h) => ({ id: crypto.randomUUID(), user_id: user.id, type: "hook" as const, content: h.content, kategori: h.kategori, created_at: new Date().toISOString() })),
+      ...DEF_PROOFS.map((p) => ({ id: crypto.randomUUID(), user_id: user.id, type: "proof" as const, content: p.content, kategori: p.kategori, created_at: new Date().toISOString() })),
+      ...DEF_CTAS.map((c) => ({ id: crypto.randomUUID(), user_id: user.id, type: "cta" as const, content: c.content, kategori: c.kategori, created_at: new Date().toISOString() })),
     ];
 
     // 3. Batch insert defaults
-    const { error: insErr } = await supabase
-      .from("templates")
-      .insert(templatesToInsert);
-
-    if (insErr) throw insErr;
+    await db.insert(templates).values(templatesToInsert);
 
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
 }
+

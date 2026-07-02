@@ -1,7 +1,7 @@
 // /*
-// Tujuan: Mesin penjadwalan cerdas berbasis kuota proporsi, rotasi round-robin dengan cooldown produk & brand, serta interpolasi script video.
-// Caller: Route API /api/schedule, Dashboard UI
-// Dependensi: types/index.ts, lib/scoring/engine.ts
+// Tujuan: Mesin penjadwalan cerdas berbasis alokasi budget proporsional, prioritas produk kerjasama, jam analitik akun, dan cooldown produk/brand.
+// Caller: Route API /api/schedule, Dashboard UI, Server Actions (schedule.ts)
+// Dependensi: types/index.ts
 // Main Functions: generateSchedule, allocateQuotas, roundRobinPick, buildSlotScript
 // Side Effects: None (Pure algorithm helper)
 // */
@@ -106,7 +106,6 @@ export function roundRobinPick(
     return p;
   }
 
-  // Fallback jika semua kena cooldown: ambil cursor saat ini
   const p = pool[cursor.idx % pool.length];
   cursor.idx = (cursor.idx + 1) % pool.length;
   cooldownMap[p.id] = slotIdx;
@@ -126,6 +125,7 @@ export interface GeneratorParams {
   templates: Template[];
   competitorJamList?: { j: string; n: number }[];
   personalJamList?: { j: string; n: number }[];
+  excludeDays?: string[];
 }
 
 export function generateSchedule({
@@ -139,44 +139,126 @@ export function generateSchedule({
   templates,
   competitorJamList = [],
   personalJamList = [],
+  excludeDays = ["Minggu"],
 }: GeneratorParams): ScheduleDaySlot[] {
-  // Filter produk aktif (kecuali DROP)
-  const winning = products.filter((p) => p.klasifikasi === "WINNING" && p.status === "aktif").sort((a, b) => b.bench_score - a.bench_score);
-  const potential = products.filter((p) => p.klasifikasi === "POTENTIAL" && p.status === "aktif").sort((a, b) => b.bench_score - a.bench_score);
-  const testing = products.filter((p) => (p.klasifikasi === "MONITOR" || p.klasifikasi === "DROP") && p.status === "aktif").sort((a, b) => b.bench_score - a.bench_score);
-  const allActive = products.filter((p) => p.status === "aktif").sort((a, b) => b.bench_score - a.bench_score);
+  const todayMs = new Date().setHours(0, 0, 0, 0);
 
-  // Tentukan slot waktu posting
-  const defaultSlots = PATS[patternSlotsKey] || PATS["6"];
-  let daySlotsTimes = [...defaultSlots].sort();
-
-  // Dynamic jam calculations
-  let primeSlotsList = [...DEFAULT_PRIME_SLOTS];
-  let midSlotsList = [...DEFAULT_MID_SLOTS];
-
-  if (useDynamicJam) {
-    let jamData = competitorJamList;
-    if (personalJamList.length >= 10) {
-      jamData = personalJamList;
+  // 1. Hard Filter: active products, excluding expired collaborations
+  const activeProducts = products.filter((p) => {
+    if (p.status !== "aktif") return false;
+    if (p.is_kerjasama) {
+      if (p.kerjasama_deadline) {
+        const dl = new Date(p.kerjasama_deadline).getTime();
+        if (dl < todayMs) return false;
+      }
     }
-    
-    if (jamData.length >= 3) {
-      const sortedJam = [...jamData].sort((a, b) => b.n - a.n);
-      const primeCount = Math.max(2, Math.ceil(sortedJam.length * 0.3));
-      const midCount = Math.max(3, Math.ceil(sortedJam.length * 0.4));
-      
-      primeSlotsList = sortedJam.slice(0, primeCount).map((j) => j.j);
-      midSlotsList = sortedJam.slice(primeCount, primeCount + midCount).map((j) => j.j);
-    }
+    return true;
+  });
+
+  if (activeProducts.length === 0) {
+    return [];
   }
 
-  // Quotas per tier
-  const quotas = allocateQuotas(daySlotsTimes.length, winPct);
+  // 2. Classify Pools (Sorted by priority score descending)
+  const primePool = activeProducts
+    .filter((p) => ["PROVEN_WINNER", "GMV_ACTIVE", "RESTOCK_CONFIRMED"].includes(p.klasifikasi))
+    .sort((a, b) => b.bench_score - a.bench_score);
 
-  // Cursor inisialisasi acak
-  const winCursor = { idx: Math.floor(Math.random() * Math.max(winning.length, 1)) };
-  const potCursor = { idx: Math.floor(Math.random() * Math.max(potential.length, 1)) };
-  const testCursor = { idx: Math.floor(Math.random() * Math.max(testing.length, 1)) };
+  const regularPool = activeProducts
+    .filter((p) => ["GROWING", "MONITOR", "SPIKE_ONLY"].includes(p.klasifikasi))
+    .sort((a, b) => b.bench_score - a.bench_score);
+
+  const testingPool = activeProducts
+    .filter((p) => ["EARLY_STAGE", "RESTOCK_RECOVERY", "STAGNANT", "DECLINING"].includes(p.klasifikasi))
+    .sort((a, b) => b.bench_score - a.bench_score);
+
+  const collabProducts = activeProducts.filter((p) => p.is_kerjasama);
+
+  // Slot times setup
+  const defaultSlots = PATS[patternSlotsKey] || PATS["6"];
+  const daySlotsTimes = [...defaultSlots].sort();
+
+  // Dynamic jam mapping
+  let jamData = competitorJamList;
+  if (useDynamicJam && personalJamList.length >= 5) {
+    jamData = personalJamList;
+  }
+  const sortedJam = [...jamData].sort((a, b) => b.n - a.n).map((j) => j.j);
+
+  // Helper to map slot type based on strict clock ranges
+  function getSlotType(time: string): "PRIME" | "MID" | "TEST" {
+    const hour = parseInt(time.split(":")[0], 10);
+    if (hour < 10) {
+      return "TEST";
+    }
+    if (hour >= 17) {
+      return "PRIME";
+    }
+    return "MID";
+  }
+
+  // Round-Robin state cursors
+  const poolCursors = {
+    prime: 0,
+    regular: 0,
+    testing: 0,
+  };
+
+  // Robust round robin pick function with daily limits and exclusions
+  function pickFromPool(
+    pool: Product[],
+    poolKey: "prime" | "regular" | "testing",
+    dailyProductCount: Record<string, number>,
+    maxPerDay: number,
+    excludeProductIds: Set<string> = new Set()
+  ): Product | null {
+    if (!pool.length) return null;
+
+    const startIdx = poolCursors[poolKey];
+    for (let i = 0; i < pool.length; i++) {
+      const idx = (startIdx + i) % pool.length;
+      const product = pool[idx];
+
+      if (excludeProductIds.has(product.id)) continue;
+
+      const count = dailyProductCount[product.id] || 0;
+      if (count >= maxPerDay) continue;
+
+      poolCursors[poolKey] = (idx + 1) % pool.length;
+      return product;
+    }
+
+    // Exclude constraint fallback
+    if (excludeProductIds.size > 0) {
+      for (let i = 0; i < pool.length; i++) {
+        const idx = (startIdx + i) % pool.length;
+        const product = pool[idx];
+        const count = dailyProductCount[product.id] || 0;
+        if (count >= maxPerDay) continue;
+
+        poolCursors[poolKey] = (idx + 1) % pool.length;
+        return product;
+      }
+    }
+
+    // Overlimit fallback
+    const fallbackIdx = startIdx % pool.length;
+    const product = pool[fallbackIdx];
+    poolCursors[poolKey] = (fallbackIdx + 1) % pool.length;
+    return product;
+  }
+
+  // Track remaining collab slot counts
+  const collabSlotsRemaining: Record<string, number> = {};
+  collabProducts.forEach((cp) => {
+    const deadlineTs = cp.kerjasama_deadline ? new Date(cp.kerjasama_deadline).getTime() : 0;
+    const daysUntilDeadline = deadlineTs ? Math.max(1, Math.ceil((deadlineTs - todayMs) / 86400000)) : 7;
+    const collab_remaining = Math.max(0, cp.kerjasama_target - (cp.content_made || 0));
+    collabSlotsRemaining[cp.id] = Math.min(
+      collab_remaining,
+      Math.ceil(collab_remaining * (rangeDays / daysUntilDeadline))
+    );
+  });
 
   const results: ScheduleDaySlot[] = [];
 
@@ -186,86 +268,215 @@ export function generateSchedule({
     const dateStr = dt.toISOString().split("T")[0];
     const dayName = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][dt.getDay()];
 
-    // Kelompokkan slot berdasarkan prioritas pengisian
-    const primeSlots = daySlotsTimes.filter((t) => primeSlotsList.includes(t));
-    const midSlots = daySlotsTimes.filter((t) => midSlotsList.includes(t));
-    const otherSlots = daySlotsTimes.filter((t) => !primeSlotsList.includes(t) && !midSlotsList.includes(t));
+    const isExcluded = excludeDays.includes(dayName);
+    if (isExcluded) {
+      results.push({
+        hari: `${dayName}, ${dateStr}`,
+        slots: [],
+      });
+      continue;
+    }
 
-    const orderedSlots = [...primeSlots, ...midSlots, ...otherSlots];
-    const slotAssignment = new Map<string, "win" | "pot" | "test">();
-    let winCount = 0;
-    let potCount = 0;
+    // Initialize daily slot structures
+    const daySlots = daySlotsTimes.map((time) => ({
+      jam: time,
+      tipe: getSlotType(time),
+      productId: null as string | null,
+      productName: null as string | null,
+      brand: null as string | null,
+      kategori: null as string | null,
+      isCollabSlot: false,
+      reason: "",
+    }));
 
-    orderedSlots.forEach((time) => {
-      if (winCount < quotas.win) {
-        slotAssignment.set(time, "win");
-        winCount++;
-      } else if (potCount < quotas.pot) {
-        slotAssignment.set(time, "pot");
-        potCount++;
-      } else {
-        slotAssignment.set(time, "test");
+    const dailyProductCount: Record<string, number> = {};
+    const scheduledProductIdsToday = new Set<string>();
+
+    // 1. Collaboration (Collab Required) priority allocation
+    collabProducts.forEach((cp) => {
+      if (collabSlotsRemaining[cp.id] > 0) {
+        let slotIdx = daySlots.findIndex((s) => s.tipe === "MID" && s.productId === null);
+        if (slotIdx === -1) {
+          slotIdx = daySlots.findIndex((s) => s.tipe === "TEST" && s.productId === null);
+        }
+        if (slotIdx === -1) {
+          slotIdx = daySlots.findIndex((s) => s.productId === null);
+        }
+
+        if (slotIdx !== -1) {
+          daySlots[slotIdx].productId = cp.id;
+          daySlots[slotIdx].productName = cp.nama;
+          daySlots[slotIdx].brand = cp.brand;
+          daySlots[slotIdx].kategori = cp.kategori;
+          daySlots[slotIdx].isCollabSlot = true;
+          daySlots[slotIdx].reason = `COLLABORATION | Sisa target: ${collabSlotsRemaining[cp.id]} | Deadline: ${cp.kerjasama_deadline}`;
+          
+          dailyProductCount[cp.id] = (dailyProductCount[cp.id] || 0) + 1;
+          scheduledProductIdsToday.add(cp.id);
+          collabSlotsRemaining[cp.id]--;
+        }
       }
     });
 
-    const cooldownMap: Record<string, number> = {};
-    const brandCooldownMap: Record<string, number> = {};
+    // 2. Prime Slots Allocation
+    daySlots.forEach((slot) => {
+      if (slot.productId !== null) return;
+      if (slot.tipe === "PRIME") {
+        const prod = pickFromPool(primePool, "prime", dailyProductCount, 2);
+        if (prod) {
+          slot.productId = prod.id;
+          slot.productName = prod.nama;
+          slot.brand = prod.brand;
+          slot.kategori = prod.kategori;
+          slot.reason = `PRIME | Skor: ${Math.round(prod.bench_score)} | Klasifikasi: ${prod.klasifikasi}`;
+          dailyProductCount[prod.id] = (dailyProductCount[prod.id] || 0) + 1;
+          scheduledProductIdsToday.add(prod.id);
+        }
+      }
+    });
 
-    const slots = daySlotsTimes.map((time, si) => {
-      const assignment = slotAssignment.get(time) || "test";
-      let prod: Product | null = null;
-      let type: "PRIME" | "MID" | "TEST" = "TEST";
+    // 3. Regular (MID) Slots Allocation
+    daySlots.forEach((slot) => {
+      if (slot.productId !== null) return;
+      if (slot.tipe === "MID") {
+        const prod = pickFromPool(regularPool, "regular", dailyProductCount, 2);
+        if (prod) {
+          slot.productId = prod.id;
+          slot.productName = prod.nama;
+          slot.brand = prod.brand;
+          slot.kategori = prod.kategori;
+          slot.reason = `REGULAR | Skor: ${Math.round(prod.bench_score)} | Klasifikasi: ${prod.klasifikasi}`;
+          dailyProductCount[prod.id] = (dailyProductCount[prod.id] || 0) + 1;
+          scheduledProductIdsToday.add(prod.id);
+        }
+      }
+    });
 
-      if (assignment === "win") {
-        prod =
-          roundRobinPick(winning, winCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(potential, potCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(testing, testCursor, cooldownMap, si, useCooldown, brandCooldownMap);
-        type = "PRIME";
-      } else if (assignment === "pot") {
-        prod =
-          roundRobinPick(potential, potCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(winning, winCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(testing, testCursor, cooldownMap, si, useCooldown, brandCooldownMap);
-        type = "MID";
+    // 4. Testing (TEST) Slots Allocation
+    daySlots.forEach((slot) => {
+      if (slot.productId !== null) return;
+      if (slot.tipe === "TEST") {
+        const prod = pickFromPool(testingPool, "testing", dailyProductCount, 1, scheduledProductIdsToday);
+        if (prod) {
+          slot.productId = prod.id;
+          slot.productName = prod.nama;
+          slot.brand = prod.brand;
+          slot.kategori = prod.kategori;
+          slot.reason = `TESTING | Skor: ${Math.round(prod.bench_score)} | Klasifikasi: ${prod.klasifikasi}`;
+          dailyProductCount[prod.id] = (dailyProductCount[prod.id] || 0) + 1;
+          scheduledProductIdsToday.add(prod.id);
+        }
+      }
+    });
+
+    // 5. Fallback for empty slots
+    daySlots.forEach((slot) => {
+      if (slot.productId !== null) return;
+      
+      let prod = null;
+      if (slot.tipe === "PRIME") {
+        prod = pickFromPool(primePool, "prime", dailyProductCount, 2) ||
+               pickFromPool(regularPool, "regular", dailyProductCount, 2) ||
+               pickFromPool(testingPool, "testing", dailyProductCount, 1);
+      } else if (slot.tipe === "MID") {
+        prod = pickFromPool(regularPool, "regular", dailyProductCount, 2) ||
+               pickFromPool(primePool, "prime", dailyProductCount, 2) ||
+               pickFromPool(testingPool, "testing", dailyProductCount, 1);
       } else {
-        prod =
-          roundRobinPick(testing, testCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(potential, potCursor, cooldownMap, si, useCooldown, brandCooldownMap) ||
-          roundRobinPick(winning, winCursor, cooldownMap, si, useCooldown, brandCooldownMap);
-        type = "TEST";
+        prod = pickFromPool(testingPool, "testing", dailyProductCount, 1) ||
+               pickFromPool(regularPool, "regular", dailyProductCount, 2) ||
+               pickFromPool(primePool, "prime", dailyProductCount, 2);
       }
 
-      // Fallback
-      if (!prod && allActive.length > 0) {
-        prod = allActive[0];
+      if (prod) {
+        slot.productId = prod.id;
+        slot.productName = prod.nama;
+        slot.brand = prod.brand;
+        slot.kategori = prod.kategori;
+        slot.reason = `FALLBACK | Skor: ${Math.round(prod.bench_score)}`;
+        dailyProductCount[prod.id] = (dailyProductCount[prod.id] || 0) + 1;
+      }
+    });
+
+    // 6. Cooldown Swap: Prevent back-to-back same product slots
+    if (useCooldown) {
+      for (let i = 1; i < daySlots.length; i++) {
+        if (daySlots[i].productId && daySlots[i].productId === daySlots[i - 1].productId) {
+          for (let j = i + 1; j < daySlots.length; j++) {
+            if (
+              daySlots[j].productId &&
+              daySlots[j].productId !== daySlots[i].productId &&
+              daySlots[j].productId !== daySlots[i - 1].productId
+            ) {
+              const temp = { ...daySlots[i] };
+              daySlots[i].productId = daySlots[j].productId;
+              daySlots[i].productName = daySlots[j].productName;
+              daySlots[i].brand = daySlots[j].brand;
+              daySlots[i].kategori = daySlots[j].kategori;
+              daySlots[i].isCollabSlot = daySlots[j].isCollabSlot;
+              daySlots[i].reason = daySlots[j].reason;
+
+              daySlots[j].productId = temp.productId;
+              daySlots[j].productName = temp.productName;
+              daySlots[j].brand = temp.brand;
+              daySlots[j].kategori = temp.kategori;
+              daySlots[j].isCollabSlot = temp.isCollabSlot;
+              daySlots[j].reason = temp.reason;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Populate script template texts
+    const populatedSlots = daySlots.map((slot) => {
+      if (!slot.productId) {
+        return {
+          jam: slot.jam,
+          tipe: slot.tipe,
+          productId: null,
+          productName: null,
+          brand: null,
+          kategori: null,
+          hook: null,
+          proof: null,
+          cta: null,
+        };
       }
 
-      const cat = prod ? prod.kategori : "Umum";
-      const filteredHooks = getFilteredPool(templates.filter((t) => t.type === "hook"), cat);
-      const filteredProofs = getFilteredPool(templates.filter((t) => t.type === "proof"), cat);
-      const filteredCtas = getFilteredPool(templates.filter((t) => t.type === "cta"), cat);
+      const prod = products.find((p) => p.id === slot.productId)!;
+      const cat = prod.kategori || "Umum";
+      const hooks = getFilteredPool(templates.filter((t) => t.type === "hook"), cat);
+      const proofs = getFilteredPool(templates.filter((t) => t.type === "proof"), cat);
+      const ctas = getFilteredPool(templates.filter((t) => t.type === "cta"), cat);
 
-      const hIdx = filteredHooks.length ? Math.floor(Math.random() * filteredHooks.length) : 0;
-      const pfIdx = filteredProofs.length ? Math.floor(Math.random() * filteredProofs.length) : 0;
-      const ctaIdx = filteredCtas.length ? Math.floor(Math.random() * filteredCtas.length) : 0;
+      const hIdx = hooks.length ? Math.floor(Math.random() * hooks.length) : 0;
+      const pfIdx = proofs.length ? Math.floor(Math.random() * proofs.length) : 0;
+      const ctaIdx = ctas.length ? Math.floor(Math.random() * ctas.length) : 0;
+
+      const script = buildSlotScript(prod, hIdx, pfIdx, ctaIdx, 0, templates);
+      const lines = script.split("\n\n");
+      const hookText = lines[0] ? lines[0].replace("[HOOK]\n", "") : null;
+      const proofText = lines[2] ? lines[2].replace("[PROOF]\n", "") : null;
+      const ctaText = lines[3] ? lines[3].replace("[CTA]\n", "") : null;
 
       return {
-        jam: time,
-        tipe: type,
-        productId: prod ? prod.id : null,
-        productName: prod ? prod.nama : null,
-        brand: prod ? prod.brand : null,
-        kategori: prod ? prod.kategori : null,
-        hook: prod ? buildSlotScript(prod, hIdx, pfIdx, ctaIdx, 0, templates).split("\n\n")[0].replace("[HOOK]\n", "") : null,
-        proof: prod ? buildSlotScript(prod, hIdx, pfIdx, ctaIdx, 0, templates).split("\n\n")[2].replace("[PROOF]\n", "") : null,
-        cta: prod ? buildSlotScript(prod, hIdx, pfIdx, ctaIdx, 0, templates).split("\n\n")[3].replace("[CTA]\n", "") : null,
+        jam: slot.jam,
+        tipe: slot.tipe,
+        productId: slot.productId,
+        productName: slot.productName,
+        brand: slot.brand,
+        kategori: slot.kategori,
+        hook: hookText,
+        proof: proofText,
+        cta: ctaText,
       };
     });
 
     results.push({
       hari: `${dayName}, ${dateStr}`,
-      slots,
+      slots: populatedSlots,
     });
   }
 

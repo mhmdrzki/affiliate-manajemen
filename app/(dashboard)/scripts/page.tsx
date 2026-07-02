@@ -1,14 +1,17 @@
 // /*
-// Tujuan: Halaman UI AI Script Generator (Server Component) untuk memuat daftar master produk pengguna.
+// Tujuan: Halaman UI AI Script Generator (Server Component) untuk memuat daftar master produk pengguna dari SQLite lokal.
 // Caller: Route /scripts
-// Dependensi: lib/supabase/server.ts, types/index.ts, components/scripts/ScriptGeneratorClient.tsx, components/layout/Topbar.tsx
+// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, components/scripts/ScriptGeneratorClient.tsx, components/layout/Topbar.tsx
 // Main Functions: ScriptsPage
-// Side Effects: Mengambil data produk dari database Supabase.
+// Side Effects: Mengambil data produk dari database SQLite lokal.
 // */
 
 import React from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { products as productsTable } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import ScriptGeneratorClient from "@/components/scripts/ScriptGeneratorClient";
 import Topbar from "@/components/layout/Topbar";
 import { Product } from "@/types";
@@ -26,14 +29,16 @@ export default async function ScriptsPage() {
   }
 
   // 2. Fetch Active Products (status = 'aktif')
-  const { data: products } = await supabase
-    .from("products")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("status", "aktif")
-    .order("bench_score", { ascending: false });
+  const products = await db
+    .select()
+    .from(productsTable)
+    .where(and(eq(productsTable.user_id, user.id), eq(productsTable.status, "aktif")))
+    .orderBy(desc(productsTable.bench_score));
 
-  const typedProducts = (products || []) as unknown as Product[];
+  const typedProducts = (products || []).map(p => ({
+    ...p,
+    desc_variants: p.desc_variants ? JSON.parse(p.desc_variants) : [],
+  })) as unknown as Product[];
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
@@ -45,3 +50,4 @@ export default async function ScriptsPage() {
     </div>
   );
 }
+

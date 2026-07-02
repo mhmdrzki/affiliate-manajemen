@@ -1,16 +1,32 @@
 // /*
-// Tujuan: Menyediakan instansiasi client-side Supabase Client untuk environment browser.
+// Tujuan: Menyediakan instansiasi client-side Supabase Client yang di-mock untuk lokal tanpa login.
 // Caller: Komponen React Client (useClient, dll)
-// Dependensi: @supabase/ssr, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Dependensi: None
 // Main Functions: createClient
-// Side Effects: Berkomunikasi dengan Supabase API via HTTP.
+// Side Effects: None
 // */
 
-import { createBrowserClient } from '@supabase/ssr';
-
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const mockUser = {
+    id: '00000000-0000-0000-0000-000000000000',
+    email: 'local@domain.com',
+    user_metadata: { display_name: 'Local User' }
+  };
+
+  return {
+    auth: {
+      getUser: async () => ({
+        data: { user: mockUser },
+        error: null,
+      }),
+      getSession: async () => ({
+        data: { session: { user: mockUser } },
+        error: null,
+      }),
+      signOut: async () => ({ error: null }),
+      signInWithPassword: async () => ({ data: { user: mockUser }, error: null }),
+      signUp: async () => ({ data: { user: mockUser }, error: null }),
+    }
+  } as any;
 }
+

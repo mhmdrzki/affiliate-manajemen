@@ -1,14 +1,17 @@
 // /*
-// Tujuan: Server Action sekali pakai untuk memigrasikan data JSON cadangan (v2.5) ke database relasional PostgreSQL Supabase dengan mapping UUID.
+// Tujuan: Server Action sekali pakai untuk memigrasikan data JSON cadangan (v2.5) ke database relasional SQLite lokal dengan mapping UUID.
 // Caller: Halaman alat migrasi data (/migrate)
-// Dependensi: lib/supabase/server.ts, types/index.ts, lib/scoring/engine.ts
+// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, lib/scoring/engine.ts
 // Main Functions: migrateLegacyDataAction
-// Side Effects: Mengisi tabel products, contents, period_snapshots, dan templates dengan data impor, lalu mereset skor.
+// Side Effects: Mengisi tabel products, contents, period_snapshots, dan templates dengan data impor di SQLite lokal, lalu mereset skor.
 // */
 
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { products, contents, period_snapshots, templates } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import {
   recomputeProductStats,
   scoreBenchmark,
@@ -52,15 +55,17 @@ export async function migrateLegacyDataAction(
   const userId = user.id;
 
   try {
-    const products = legacyData.products || [];
-    const contents = legacyData.contents || [];
+    const productsLegacy = legacyData.products || [];
+    const contentsLegacy = legacyData.contents || [];
     const hooks = legacyData.hooks || [];
     const proofs = legacyData.proofs || [];
     const ctas = legacyData.ctas || [];
 
     // Hapus data lama user terlebih dahulu untuk full cut-over bersih
-    await supabase.from("products").delete().eq("user_id", userId);
-    await supabase.from("templates").delete().eq("user_id", userId);
+    await db.delete(period_snapshots).where(eq(period_snapshots.user_id, userId));
+    await db.delete(contents).where(eq(contents.user_id, userId));
+    await db.delete(products).where(eq(products.user_id, userId));
+    await db.delete(templates).where(eq(templates.user_id, userId));
 
     let productsCount = 0;
     let contentsCount = 0;
@@ -73,8 +78,9 @@ export async function migrateLegacyDataAction(
     const productNameMap = new Map<string, string>();
 
     // --- MIGRATION TAHAP 1: PRODUCTS ---
-    if (products.length > 0) {
-      const productsToInsert = products.map((p: any) => ({
+    if (productsLegacy.length > 0) {
+      const productsToInsert = productsLegacy.map((p: any) => ({
+        id: crypto.randomUUID(),
         user_id: userId,
         nama: p.nama,
         brand: p.brand || "",
@@ -85,17 +91,14 @@ export async function migrateLegacyDataAction(
         status: p.status || "aktif",
         label_prestasi: p.labelPrestasi || "-",
         gmv_aktif: p.gmvAktif || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }));
 
-      const { data: insertedProds, error: pErr } = await supabase
-        .from("products")
-        .insert(productsToInsert)
-        .select("id, nama");
+      await db.insert(products).values(productsToInsert);
 
-      if (pErr) throw pErr;
-
-      insertedProds?.forEach((newP, idx) => {
-        const oldP = products[idx];
+      productsToInsert.forEach((newP: any, idx: number) => {
+        const oldP = productsLegacy[idx];
         productIdMap.set(oldP.id, newP.id);
         productNameMap.set(newP.nama.toLowerCase(), newP.id);
         productsCount++;
@@ -103,11 +106,11 @@ export async function migrateLegacyDataAction(
     }
 
     // --- MIGRATION TAHAP 2: CONTENTS & SNAPSHOTS ---
-    if (contents.length > 0) {
+    if (contentsLegacy.length > 0) {
       const contentsToInsert: any[] = [];
       const snapshotsToInsert: any[] = [];
 
-      contents.forEach((c: any) => {
+      contentsLegacy.forEach((c: any) => {
         // Cari UUID produk baru
         let prodId: string | null = productIdMap.get(c.produk) || null; // coba match by old ID jika content menyimpan ref ID
         if (!prodId && c.produk) {
@@ -130,12 +133,14 @@ export async function migrateLegacyDataAction(
           items_sold: c.itemsSold || 0,
           gmv: c.gmv || 0,
           est_komisi: c.estK || 0,
+          created_at: new Date().toISOString(),
         });
 
         // Map periodSnapshots
         const snaps = c.periodSnapshots || [];
         snaps.forEach((snap: any) => {
           snapshotsToInsert.push({
+            id: crypto.randomUUID(),
             content_id: contentId,
             user_id: userId,
             period_start: snap.pStart ? new Date(snap.pStart).toISOString() : isoDate,
@@ -154,52 +159,59 @@ export async function migrateLegacyDataAction(
 
       // Insert contents
       if (contentsToInsert.length > 0) {
-        const { error: cErr } = await supabase.from("contents").insert(contentsToInsert);
-        if (cErr) throw cErr;
+        await db.insert(contents).values(contentsToInsert);
       }
 
       // Insert snapshots
       if (snapshotsToInsert.length > 0) {
-        const { error: sErr } = await supabase.from("period_snapshots").insert(snapshotsToInsert);
-        if (sErr) throw sErr;
+        await db.insert(period_snapshots).values(snapshotsToInsert);
       }
     }
 
     // --- MIGRATION TAHAP 3: TEMPLATES (HOOK, PROOF, CTA) ---
     const templatesToInsert: any[] = [];
     hooks.forEach((h: any) => {
-      templatesToInsert.push({ user_id: userId, type: "hook", content: h.txt, kategori: h.kategori || "Umum" });
+      templatesToInsert.push({ id: crypto.randomUUID(), user_id: userId, type: "hook", content: h.txt, kategori: h.kategori || "Umum", created_at: new Date().toISOString() });
       templatesCount++;
     });
     proofs.forEach((p: any) => {
-      templatesToInsert.push({ user_id: userId, type: "proof", content: p.txt, kategori: p.kategori || "Umum" });
+      templatesToInsert.push({ id: crypto.randomUUID(), user_id: userId, type: "proof", content: p.txt, kategori: p.kategori || "Umum", created_at: new Date().toISOString() });
       templatesCount++;
     });
     ctas.forEach((c: any) => {
-      templatesToInsert.push({ user_id: userId, type: "cta", content: c.txt, kategori: c.kategori || "Umum" });
+      templatesToInsert.push({ id: crypto.randomUUID(), user_id: userId, type: "cta", content: c.txt, kategori: c.kategori || "Umum", created_at: new Date().toISOString() });
       templatesCount++;
     });
 
     if (templatesToInsert.length > 0) {
-      const { error: tErr } = await supabase.from("templates").insert(templatesToInsert);
-      if (tErr) throw tErr;
+      await db.insert(templates).values(templatesToInsert);
     }
 
     // --- MIGRATION TAHAP 4: RECALCULATE SCORING ---
-    const { data: updatedProducts } = await supabase
-      .from("products")
-      .select("*")
-      .eq("user_id", userId);
+    const updatedProducts = await db
+      .select()
+      .from(products)
+      .where(eq(products.user_id, userId));
 
-    const { data: updatedContents } = await supabase
-      .from("contents")
-      .select("*, period_snapshots(*)")
-      .eq("user_id", userId);
+    const updatedContents = await db
+      .select()
+      .from(contents)
+      .where(eq(contents.user_id, userId));
 
-    if (updatedProducts && updatedContents) {
+    const updatedSnapshots = await db
+      .select()
+      .from(period_snapshots)
+      .where(eq(period_snapshots.user_id, userId));
+
+    const contentsWithSnapshots = updatedContents.map(c => ({
+      ...c,
+      period_snapshots: updatedSnapshots.filter(s => s.content_id === c.id)
+    }));
+
+    if (updatedProducts.length > 0) {
       const statsMap = recomputeProductStats(
         updatedProducts as unknown as Product[],
-        updatedContents as unknown as (Content & { period_snapshots?: PeriodSnapshot[] })[]
+        contentsWithSnapshots as unknown as (Content & { period_snapshots?: PeriodSnapshot[] })[]
       );
 
       const hasCommerce = updatedProducts.filter(
@@ -225,9 +237,9 @@ export async function migrateLegacyDataAction(
         const klas = classifyP(p as unknown as Product, pStats, activeScoringMode);
         const slot = slotR(klas);
 
-        await supabase
-          .from("products")
-          .update({
+        await db
+          .update(products)
+          .set({
             bench_score: p.bench_score,
             topsis_score: p.topsis_score,
             klasifikasi: klas,
@@ -235,7 +247,7 @@ export async function migrateLegacyDataAction(
             score_mode: activeScoringMode,
             gmv_aktif: pStats.gmv_aktif,
           })
-          .eq("id", p.id);
+          .where(eq(products.id, p.id));
       }
     }
 
@@ -258,3 +270,4 @@ export async function migrateLegacyDataAction(
     };
   }
 }
+

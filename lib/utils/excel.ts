@@ -1,57 +1,31 @@
 // /*
-// Tujuan: Menyediakan fungsi utilitas untuk parsing file Excel/CSV menggunakan SheetJS, pemetaan header dinamis, dan auto-deteksi metadata produk.
-// Caller: Komponen uploader impor data (/import)
-// Dependensi: xlsx
-// Main Functions: detectBrand, detectJenis, fuzzyHeaderFind, parseNumberValue, parsePeriodeDates
+// Tujuan: Menyediakan fungsi utilitas untuk parsing file Excel TikTok Orders, dan auto-deteksi metadata produk.
+// Caller: Server Actions pengolah impor data (import-orders.ts)
+// Dependensi: None
+// Main Functions: detectBrand, detectJenis, parseTikTokNumber, parseTikTokDate
 // Side Effects: None (Pure utilities)
 // */
 
-import * as XLSX from "xlsx";
-
-// Parser nilai numerik
-export function parseNumberValue(v: any): number {
-  if (v === undefined || v === null) return 0;
-  const s = String(v).replace(/[Rp%\s,]/g, "").replace(/\./g, "").trim();
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+// TikTok XLSX format: "142.814" = Rp 142.814 (dot = ribuan separator)
+// Juga bisa: "99.000", "261.440", atau kosong ""
+export function parseTikTokNumber(v: any): number {
+  if (v === undefined || v === null || v === "") return 0;
+  const s = String(v).trim();
+  // Jika berisi dot DAN semua segmen setelah dot = 3 digit → dot = ribuan
+  const dotParts = s.split(".");
+  if (dotParts.length === 2 && dotParts[1].length === 3) {
+    return parseInt(s.replace(/\./g, ""), 10) || 0;
+  }
+  return parseFloat(s.replace(/,/g, "")) || 0;
 }
 
-// Pencarian kolom dengan pencocokan fuzzy/fleksibel (misal: "Item Nama" atau "Nama Produk")
-export function fuzzyHeaderFind(row: any, ...keys: string[]): string {
-  for (const k of keys) {
-    const foundField = Object.keys(row).find((rk) =>
-      rk.toLowerCase().replace(/[\s._]/g, "").includes(k.toLowerCase().replace(/[\s._]/g, ""))
-    );
-    if (foundField !== undefined) return String(row[foundField]);
-  }
-  return "";
-}
-
-// Parsing tanggal
-export function parseDate(ds: string | null): number {
-  if (!ds) return 0;
-  if (ds.includes("/")) {
-    const p = ds.split("/");
-    if (p.length === 3) {
-      // dd/mm/yyyy -> yyyy-mm-dd
-      return new Date(`${p[2]}-${p[1]}-${p[0]}T00:00:00`).getTime();
-    }
-  }
-  return new Date(ds).getTime() || 0;
-}
-
-// Parsing periode
-export function parsePeriodeDates(periodeStr: string, fallbackTs: number): { start: number; end: number } {
-  if (!periodeStr) return { start: fallbackTs, end: fallbackTs };
-  const clean = periodeStr.replace(/"/g, "").trim();
-  const parts = clean.split(/\s+[-–—~]\s+|\s+s\/d\s+|\s+to\s+|\s+s\.d\.\s+|\s+sampai\s+/i);
-  if (parts.length >= 2) {
-    const start = parseDate(parts[0].trim()) || fallbackTs;
-    const end = parseDate(parts[parts.length - 1].trim()) || fallbackTs;
-    return { start, end };
-  }
-  const d = parseDate(clean) || fallbackTs;
-  return { start: d, end: d };
+// Format tanggal TikTok: "25/06/2026 13:55:03" → ISO string
+export function parseTikTokDate(dateStr: string): string | null {
+  if (!dateStr || dateStr === "/") return null;
+  const parts = dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (!parts) return null;
+  const [, dd, mm, yyyy, hh, mi, ss] = parts;
+  return new Date(`${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}+07:00`).toISOString();
 }
 
 // Auto-detect Brand/Merk produk
@@ -100,17 +74,4 @@ export function detectJenis(name: string): string {
     }
   }
   return "";
-}
-
-// Relasi snapshot periode non-overlapping
-export function periodRelation(
-  aStart: number,
-  aEnd: number,
-  bStart: number,
-  bEnd: number
-): "contains" | "contained" | "overlap" | "none" {
-  if (aStart <= bStart && aEnd >= bEnd) return "contains";
-  if (bStart <= aStart && bEnd >= aEnd) return "contained";
-  if (aStart <= bEnd && aEnd >= bStart) return "overlap";
-  return "none";
 }

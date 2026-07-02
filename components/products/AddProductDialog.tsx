@@ -9,7 +9,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, X, Loader2, Info } from "lucide-react";
+import { Plus, X, Loader2, Info, HelpCircle } from "lucide-react";
 import { createProductAction } from "@/app/actions/products";
 import { useRouter } from "next/navigation";
 
@@ -26,6 +26,14 @@ export default function AddProductDialog() {
   const [harga, setHarga] = useState("");
   const [komisi, setKomisi] = useState("");
   const [kategori, setKategori] = useState("Umum");
+  
+  // New TikTok mapping & Collaboration states
+  const [tiktokProductId, setTiktokProductId] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [shopCode, setShopCode] = useState("");
+  const [isKerjasama, setIsKerjasama] = useState(false);
+  const [kerjasamaTarget, setKerjasamaTarget] = useState("");
+  const [kerjasamaDeadline, setKerjasamaDeadline] = useState("");
 
   const popularCategories = [
     "Umum",
@@ -43,6 +51,12 @@ export default function AddProductDialog() {
     setHarga("");
     setKomisi("");
     setKategori("Umum");
+    setTiktokProductId("");
+    setShopName("");
+    setShopCode("");
+    setIsKerjasama(false);
+    setKerjasamaTarget("");
+    setKerjasamaDeadline("");
     setError(null);
     setIsOpen(true);
   };
@@ -78,6 +92,12 @@ export default function AddProductDialog() {
         harga: priceNum,
         komisi: commNum,
         kategori,
+        tiktok_product_id: tiktokProductId || null,
+        shop_name: shopName || null,
+        shop_code: shopCode || null,
+        is_kerjasama: isKerjasama,
+        kerjasama_target: isKerjasama ? (parseInt(kerjasamaTarget) || 0) : 0,
+        kerjasama_deadline: isKerjasama && kerjasamaDeadline ? new Date(kerjasamaDeadline).toISOString() : null
       });
 
       if (res.success) {
@@ -111,7 +131,7 @@ export default function AddProductDialog() {
           <div className="absolute inset-0" onClick={handleClose} />
 
           {/* Modal Container */}
-          <div className="bg-white border border-border-light rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative z-10 transform transition-all duration-300 scale-95 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+          <div className="bg-white border border-border-light rounded-2xl shadow-xl w-full max-w-lg overflow-hidden relative z-10 transform transition-all duration-300 scale-95 animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh]">
             {/* Header */}
             <div className="px-5 py-4 border-b border-border-light flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -153,6 +173,56 @@ export default function AddProductDialog() {
                   onChange={(e) => setNama(e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-bg border border-border-light focus:border-accent rounded-lg focus:outline-none transition-colors"
                 />
+              </div>
+
+              {/* SECTION: TikTok Mapping */}
+              <div className="p-3.5 bg-bg-panel border border-border-light rounded-xl space-y-3">
+                <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1">
+                  <span>TikTok Shop Mapping</span>
+                  <span title="Untuk sinkronisasi otomatis data rekap pesanan TikTok">
+                    <HelpCircle className="w-3 h-3 text-text-placeholder" />
+                  </span>
+                </h4>
+                
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] font-bold text-text-placeholder uppercase">
+                    TikTok Product ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 1730353572051453257"
+                    value={tiktokProductId}
+                    onChange={(e) => setTiktokProductId(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-border-light focus:border-accent rounded-lg focus:outline-none transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] font-bold text-text-placeholder uppercase">
+                      Nama Toko / Seller
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="MSGLOWFORMEN"
+                      value={shopName}
+                      onChange={(e) => setShopName(e.target.value)}
+                      className="w-full text-xs px-3 py-2 bg-white border border-border-light focus:border-accent rounded-lg focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] font-bold text-text-placeholder uppercase">
+                      Kode Toko
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="IDLCH3LWQ9"
+                      value={shopCode}
+                      onChange={(e) => setShopCode(e.target.value)}
+                      className="w-full text-xs px-3 py-2 bg-white border border-border-light focus:border-accent rounded-lg focus:outline-none transition-colors font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Grid 2 Column (Brand & Jenis) */}
@@ -200,17 +270,62 @@ export default function AddProductDialog() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-text-placeholder uppercase tracking-wider">
-                    Komisi (Rp)
+                    Komisi (%)
                   </label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="13900"
+                    max="100"
+                    placeholder="10"
                     value={komisi}
                     onChange={(e) => setKomisi(e.target.value)}
                     className="w-full text-xs px-3 py-2 bg-bg border border-border-light focus:border-accent rounded-lg focus:outline-none transition-colors font-mono"
                   />
                 </div>
+              </div>
+
+              {/* SECTION: Program Kerjasama / Sponsor */}
+              <div className="p-3.5 bg-purple-50/50 border border-purple-100 rounded-xl space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isKerjasama}
+                    onChange={(e) => setIsKerjasama(e.target.checked)}
+                    className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4 border-purple-200"
+                  />
+                  <span className="text-[10px] font-bold text-purple-950 uppercase tracking-wider">Program Kerjasama Konten</span>
+                </label>
+
+                {isKerjasama && (
+                  <div className="grid grid-cols-2 gap-3 pt-1 animate-in slide-in-from-top-1 duration-150">
+                    <div className="space-y-1.5">
+                      <label className="block text-[9px] font-bold text-purple-900 uppercase">
+                        Target Posting (Video)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="3"
+                        required={isKerjasama}
+                        value={kerjasamaTarget}
+                        onChange={(e) => setKerjasamaTarget(e.target.value)}
+                        className="w-full text-xs px-3 py-2 bg-white border border-purple-200 focus:border-purple-500 rounded-lg focus:outline-none transition-colors font-mono text-purple-950"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[9px] font-bold text-purple-900 uppercase">
+                        Tanggal Deadline
+                      </label>
+                      <input
+                        type="date"
+                        required={isKerjasama}
+                        value={kerjasamaDeadline}
+                        onChange={(e) => setKerjasamaDeadline(e.target.value)}
+                        className="w-full text-xs px-3 py-2 bg-white border border-purple-200 focus:border-purple-500 rounded-lg focus:outline-none transition-colors font-mono text-purple-950"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Input: Kategori */}
