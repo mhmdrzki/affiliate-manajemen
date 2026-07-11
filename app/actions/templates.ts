@@ -1,14 +1,14 @@
 // /*
 // Tujuan: Server Actions untuk pengelolaan bank template naskah video (Hook, Proof, CTA) per-kategori milik pengguna di SQLite lokal.
 // Caller: Halaman manajemen template (/templates), Generator Jadwal (/schedule)
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts
+// Dependensi: lib/db/index.ts, lib/auth.ts, types/index.ts
 // Main Functions: getTemplatesAction, addTemplateAction, deleteTemplateAction, resetTemplatesToDefaultAction
 // Side Effects: Membaca, menulis, atau menghapus record di tabel templates di SQLite lokal.
 // */
 
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { templates } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -65,8 +65,7 @@ const DEF_CTAS = [
 
 // Fetch all templates for active user
 export async function getTemplatesAction(): Promise<Template[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getMockUser();
   if (!user) return [];
 
   const list = await db
@@ -84,8 +83,7 @@ export async function addTemplateAction(
   content: string,
   kategori: string = "Umum"
 ): Promise<{ success: boolean; data?: Template; error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getMockUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
   try {
@@ -108,8 +106,7 @@ export async function addTemplateAction(
 
 // Delete template
 export async function deleteTemplateAction(id: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getMockUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
   try {
@@ -125,8 +122,7 @@ export async function deleteTemplateAction(id: string): Promise<{ success: boole
 
 // Reset templates to default
 export async function resetTemplatesToDefaultAction(): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getMockUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
   try {

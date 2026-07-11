@@ -39,7 +39,7 @@ affiliate-manajemen/
 │   │   ├── import/         # Halaman uploader XLSX/CSV (TikTok orders)
 │   │   ├── migrate/        # Halaman uploader cadangan JSON v2.5
 │   │   ├── products/       # Halaman master produk (tabel & kontrol status/tambah)
-│   │   ├── schedule/       # Halaman penjadwalan cerdas (Round-Robin generator)
+│   │   ├── schedule/       # Halaman penjadwalan cerdas (generator & tuning) [NEW]
 │   │   ├── scripts/        # Halaman AI Script Generator (Gemini Integration)
 │   │   ├── settings/       # Halaman pengaturan API Key & Profil
 │   │   └── templates/      # Halaman bank template naskah (Hooks, Proofs, CTAs)
@@ -49,7 +49,7 @@ affiliate-manajemen/
 │   │   ├── import-orders.ts # Aksi utama pemrosesan rekap pesanan TikTok & update DB
 │   │   ├── migrate.ts      # Aksi dump data JSON lama ke database baru
 │   │   ├── products.ts     # Aksi tambah produk & update status produk
-│   │   ├── schedule.ts     # Aksi generate, load, dan hapus jadwal konten
+│   │   ├── schedule.ts     # Aksi generate, load, dan hapus jadwal konten [NEW]
 │   │   ├── settings.ts     # Aksi pembaruan pengaturan profil & skoring
 │   │   └── templates.ts    # Aksi kelola template naskah (get, add, delete, reset)
 │   ├── api/                # API Route Handlers (Gemini API & Scraper API)
@@ -58,20 +58,21 @@ affiliate-manajemen/
 │   └── page.tsx            # Dashboard Analytics
 ├── components/             # Reusable UI Components
 │   ├── layout/             # Sidebar & Topbar
-│   ├── import/             # Interactive components for import page (ImportUploader, ImportHistoryList)
-│   ├── history/            # Interactive components for history page (ProductSelector, ContentHistoryTable, ScraperPanel) [NEW]
-│   ├── products/           # Interactive components for products page (Add, Edit, Status, ProductTable)
-│   ├── scripts/            # Interactive components for scripts page (ScriptGeneratorClient)
-│   └── templates/          # Interactive components for templates page (AddTemplateDialog)
+│   ├── import/             # Interactive components for import page
+│   ├── history/            # Interactive components for history page
+│   ├── products/           # Interactive components for products page
+│   ├── scripts/            # Interactive components for scripts page
+│   ├── templates/          # Interactive components for templates page
+│   └── schedule/           # Komponen halaman jadwal (Generator, Card, Table, Params) [NEW]
 ├── lib/                    # Helpers, Engines, & Client Inits
 │   ├── db/                 # Setup database SQLite lokal & Drizzle Schema [NEW]
-│   ├── schedule/           # Algoritma penjadwalan cerdas proporsional
-│   ├── scoring/            # Engine scoring regularity, TOPSIS & anomalies
+│   ├── scoring/            # Engine scoring regularity, pool classification, & slot allocation [NEW]
 │   ├── supabase/           # Mocked client & server auth session [MOCKED]
 │   └── utils/              # Data formatters & Excel parsers
 ├── drizzle/                # Hasil migrasi skema Drizzle [NEW]
 ├── drizzle.config.ts       # Konfigurasi Drizzle ORM [NEW]
 ├── local.db                # File database SQLite lokal [NEW]
+├── scripts/                # Kumpulan skrip utilitas CLI & pembaruan database [NEW]
 ├── types/                  # TypeScript interface definitions (types/index.ts)
 └── SYSTEM_MAP.md           # Berkas ini (Kompas Navigasi)
 ```
@@ -81,20 +82,20 @@ affiliate-manajemen/
 ## 4. Module Map (Backend Actions & Libs)
 
 1. **`app/actions/products.ts`**: Server Actions untuk manajemen master produk.
-   * *Fungsi*: `createProductAction()`, `updateProductStatusAction()`, `saveProductDescVariantAction()`, `updateProductAction()`, `deleteProductAction()`, `deleteProductsBulkAction()`.
+   * *Fungsi*: `createProductAction()`, `updateProductStatusAction()`, `saveProductDescVariantAction()`, `updateProductAction()`, `deleteProductAction()`, `deleteProductsBulkAction()`, `resetProductTestingAction()`.
 2. **`app/actions/import-orders.ts`**: Server Actions pengolahan Excel analitik rekap pesanan TikTok.
-   * *Fungsi*: `importAffiliateOrdersAction()`, `getImportLogsAction()`, `deleteImportLogAction()`, `recomputeProductAndContentMetrics()`.
-3. **`app/actions/migrate.ts`**: Server Actions migrasi dari v2.5.
-   * *Fungsi*: `migrateLegacyDataAction()`.
-4. **`lib/scoring/engine.ts`**: Algoritma skoring Regularity, TOPSIS, dan Kuota.
-   * *Fungsi*: `computeOrderBasedStats()`, `computeCompositeScore()`, `classifyProduct()`, `calcWeeklyQuota()`, `generateRecommendation()`, `recomputeFromOrders()`.
-5. **`lib/scoring/anomalies.ts`**: Deteksi anomali performa produk berdasarkan pesanan detail.
-   * *Fungsi*: `detectAnomalies()`.
-6. **`app/actions/templates.ts`**: Server Actions untuk pengelolaan bank template naskah video.
-   * *Fungsi*: `getTemplatesAction()`, `addTemplateAction()`, `deleteTemplateAction()`, `resetTemplatesToDefaultAction()`.
-7. **`app/actions/schedule.ts`**: Server Actions untuk kalkulasi dan penyimpanan jadwal konten cerdas.
-   * *Fungsi*: `getSchedulesAction()`, `deleteScheduleAction()`, `generateAndSaveScheduleAction()`.
+   * *Fungsi*: `importAffiliateOrdersAction()`, `getImportLogsAction()`, `deleteImportLogAction()`, `recomputeProductAndContentMetrics()`, `getAllFilteredOrdersAction()`.
+3. **`lib/scoring/index.ts`**: Orkestrator utama skoring dan generator jadwal konten. Mendukung fitur "Estafet Rencana Masa Depan" — saat generate jadwal masa depan, membaca jadwal tersimpan sebagai riwayat virtual.
+   * *Fungsi*: `generateDailySchedule()`, `generateWeeklySchedule()`, `loadParams()`, `loadSavedScheduleHistory()`.
+4. **`lib/scoring/aggregator.ts`**: Modul agregator data order dan data konten per produk.
+   * *Fungsi*: `aggregateProducts()`.
+5. **`lib/scoring/engine.ts`**: Implementasi core filter keras, klasifikasi pool, dan formula skor Pool A & B.
+   * *Fungsi*: `filterKeras()`, `identifyCollaborationSlots()`, `classifyPools()`, `scorePoolA()`, `scorePoolB()`, `mergeAndRank()`.
+6. **`lib/scoring/scheduler.ts`**: Modul alokator slot (7 slot) harian berdasarkan kolaborasi, fairness queue, dan ranking.
+   * *Fungsi*: `allocateSlots()`.
+7. **`app/actions/schedule.ts`**: Server Actions manajemen data jadwal konten harian/mingguan dan parameter scoring.
+   * *Fungsi*: `generateAndSaveScheduleAction()`, `getSchedulesAction()`, `deleteScheduleAction()`, `getScoringParamsAction()`, `updateScoringParamsAction()`, `previewScoringAction()`.
 8. **`app/actions/settings.ts`**: Server Actions untuk pembaruan profil pengguna.
    * *Fungsi*: `updateProfileAction()`.
 9. **`app/actions/contents.ts`**: Server Actions untuk manajemen riwayat konten.
-   * *Fungsi*: `updateContentProductIdAction()`.
+   * *Fungsi*: `updateContentProductIdAction()`, `deleteContentAction()`, `getContentsAction()`, `getAllFilteredContentsAction()`.

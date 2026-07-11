@@ -1,75 +1,172 @@
 // /*
-// Tujuan: Server Actions untuk pembuatan, pembacaan, dan penghapusan riwayat penjadwalan konten di SQLite lokal.
-// Caller: Halaman jadwal konten (/schedule)
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, next/cache (revalidatePath), lib/schedule/generator.ts, types/index.ts
-// Main Functions: getSchedulesAction, deleteScheduleAction, generateAndSaveScheduleAction
-// Side Effects: Membaca, menulis, dan menghapus baris data di tabel `schedules` di SQLite lokal.
+// Tujuan: Menyediakan server actions untuk CRUD jadwal konten dan parameter scoring.
+// Caller: components/schedule/* (Halaman UI Jadwal)
+// Dependensi: lib/db/index.ts, lib/db/schema.ts, lib/auth.ts, lib/scoring/index.ts, drizzle-orm
+// Main Functions: generateAndSaveScheduleAction, getSchedulesAction, deleteScheduleAction, getScoringParamsAction, updateScoringParamsAction, previewScoringAction
+// Side Effects: Membaca dan menulis database (schedules, scoring_params)
 // */
 
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { schedules, products, templates, contents } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { schedules, scoring_params } from "@/lib/db/schema";
+import { eq, and, gte, lte, inArray, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { generateSchedule } from "@/lib/schedule/generator";
-import { Product, Template } from "@/types";
-
-export interface ActionResponse<T = any> {
-  success: boolean;
-  message: string;
-  data?: T;
-}
+import {
+  generateDailySchedule,
+  generateWeeklySchedule,
+  loadParams,
+} from "@/lib/scoring";
+import { ActionResponse } from "./products";
+import crypto from "crypto";
 
 /**
- * Mengambil semua riwayat jadwal milik pengguna aktif
+ * Generate jadwal konten dan langsung simpan ke database.
+ * Jika jadwal sudah ada pada tanggal tersebut, akan ditimpa (delete lalu insert baru).
  */
-export async function getSchedulesAction(): Promise<any[]> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return [];
+export async function generateAndSaveScheduleAction(
+  mode: "today" | "week",
+  startDateStr?: string
+): Promise<ActionResponse> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+  const userId = user.id;
 
   try {
-    const data = await db
-      .select()
-      .from(schedules)
-      .where(eq(schedules.user_id, user.id))
-      .orderBy(desc(schedules.created_at));
+    const startStr = startDateStr || new Date().toISOString().split("T")[0];
 
-    return (data || []).map(s => {
-      try {
-        return {
-          ...s,
-          schedule_data: JSON.parse(s.schedule_data)
-        };
-      } catch {
-        return {
-          ...s,
-          schedule_data: []
-        };
+    if (mode === "today") {
+      const result = await generateDailySchedule(userId, new Date(startStr));
+      
+      // Hapus jadwal hari ini yang lama
+      await db
+        .delete(schedules)
+        .where(and(eq(schedules.user_id, userId), eq(schedules.schedule_date, startStr)));
+
+      // Masukkan jadwal baru
+      if (result.slots.length > 0) {
+        const toInsert = result.slots.map((s) => ({
+          id: "sch_" + crypto.randomUUID(),
+          user_id: userId,
+          schedule_date: startStr,
+          slot_number: s.slot_number,
+          product_id: s.product_id,
+          product_name: s.product_name,
+          slot_type: s.slot_type,
+          pool: s.pool,
+          score: s.score,
+          created_at: new Date().toISOString(),
+        }));
+        await db.insert(schedules).values(toInsert);
       }
-    });
-  } catch (err) {
-    console.error("Gagal mengambil riwayat jadwal:", err);
-    return [];
+    } else {
+      // Generate seminggu
+      const result = await generateWeeklySchedule(userId, startStr);
+
+      // Ambil seluruh tanggal yang di-generate
+      const dates = result.daily_schedules.map((d) => d.date);
+
+      if (dates.length > 0) {
+        // Hapus jadwal pada tanggal-tanggal tersebut yang lama
+        await db
+          .delete(schedules)
+          .where(and(eq(schedules.user_id, userId), inArray(schedules.schedule_date, dates)));
+
+        // Masukkan semua slot baru
+        const toInsert: any[] = [];
+        result.daily_schedules.forEach((dayResult) => {
+          dayResult.slots.forEach((s) => {
+            toInsert.push({
+              id: "sch_" + crypto.randomUUID(),
+              user_id: userId,
+              schedule_date: dayResult.date,
+              slot_number: s.slot_number,
+              product_id: s.product_id,
+              product_name: s.product_name,
+              slot_type: s.slot_type,
+              pool: s.pool,
+              score: s.score,
+              created_at: new Date().toISOString(),
+            });
+          });
+        });
+
+        if (toInsert.length > 0) {
+          // Chunk insert jika datanya besar
+          const chunkSize = 100;
+          for (let i = 0; i < toInsert.length; i += chunkSize) {
+            await db.insert(schedules).values(toInsert.slice(i, i + chunkSize));
+          }
+        }
+      }
+    }
+
+    revalidatePath("/schedule");
+    revalidatePath("/products");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: `Jadwal konten berhasil di-generate dan disimpan.`,
+    };
+  } catch (err: any) {
+    console.error("Gagal melakukan generate jadwal:", err);
+    return {
+      success: false,
+      message: err.message || "Gagal melakukan generate jadwal.",
+    };
   }
 }
 
 /**
- * Menghapus catatan riwayat jadwal berdasarkan ID
+ * Mengambil seluruh data jadwal tersimpan milik user aktif.
  */
-export async function deleteScheduleAction(id: string): Promise<ActionResponse> {
-  const supabase = await createClient();
+export async function getSchedulesAction(filters?: {
+  startDate?: string;
+  endDate?: string;
+}): Promise<ActionResponse<any[]>> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const conditions = [eq(schedules.user_id, user.id)];
 
+    if (filters?.startDate) {
+      conditions.push(gte(schedules.schedule_date, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(schedules.schedule_date, filters.endDate));
+    }
+
+    const list = await db
+      .select()
+      .from(schedules)
+      .where(and(...conditions))
+      .orderBy(asc(schedules.schedule_date), asc(schedules.slot_number));
+
+    return {
+      success: true,
+      message: "Daftar jadwal berhasil diambil.",
+      data: list,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal mengambil daftar jadwal.",
+    };
+  }
+}
+
+/**
+ * Menghapus jadwal konten untuk satu tanggal tertentu.
+ */
+export async function deleteScheduleAction(scheduleDate: string): Promise<ActionResponse> {
+  const user = await getMockUser();
   if (!user) {
     return { success: false, message: "Sesi habis, silakan login ulang." };
   }
@@ -77,165 +174,124 @@ export async function deleteScheduleAction(id: string): Promise<ActionResponse> 
   try {
     await db
       .delete(schedules)
-      .where(and(eq(schedules.id, id), eq(schedules.user_id, user.id)));
-
-    revalidatePath("/schedule");
-
-    return { success: true, message: "Riwayat jadwal berhasil dihapus." };
-  } catch (err: any) {
-    return {
-      success: false,
-      message: err.message || "Gagal menghapus riwayat jadwal.",
-    };
-  }
-}
-
-/**
- * Mengambil pool produk dan template, menghitung jam analitik akun (dynamic hours),
- * lalu memicu engine generator jadwal dan menyimpannya ke database.
- */
-export async function generateAndSaveScheduleAction(params: {
-  startDate: string;
-  rangeDays: number;
-  patternSlotsKey: string;
-  winPct: number;
-  useDynamicJam: boolean;
-  useCooldown: boolean;
-}): Promise<ActionResponse> {
-  const supabase = await createClient();
-
-  // 1. Verifikasi User
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, message: "Sesi habis, silakan login ulang." };
-  }
-
-  const userId = user.id;
-
-  try {
-    // 2. Fetch Active Products
-    const productsData = await db
-      .select()
-      .from(products)
-      .where(and(eq(products.user_id, userId), eq(products.status, "aktif")));
-
-    // Fetch content counts per product to calculate collaboration content made
-    const contentsLog = await db
-      .select({ product_id: contents.product_id })
-      .from(contents)
-      .where(eq(contents.user_id, userId));
-
-    const contentCounts: Record<string, number> = {};
-    (contentsLog || []).forEach(c => {
-      if (c.product_id) {
-        contentCounts[c.product_id] = (contentCounts[c.product_id] || 0) + 1;
-      }
-    });
-
-    const mappedProducts = (productsData || []).map(p => ({
-      ...p,
-      desc_variants: p.desc_variants ? JSON.parse(p.desc_variants) : [],
-      content_made: contentCounts[p.id] || 0,
-    })) as unknown as Product[];
-
-    if (mappedProducts.length === 0) {
-      return {
-        success: false,
-        message:
-          "Gagal men-generate jadwal. Tidak ditemukan produk dengan status 'aktif' di Master Produk Anda.",
-      };
-    }
-
-    // 3. Fetch Templates
-    const templatesData = await db
-      .select()
-      .from(templates)
-      .where(eq(templates.user_id, userId));
-
-    const typedTemplates = (templatesData || []) as unknown as Template[];
-    if (typedTemplates.length === 0) {
-      return {
-        success: false,
-        message:
-          "Gagal men-generate jadwal. Silakan isi Bank Template (Hooks, Proofs, CTAs) terlebih dahulu.",
-      };
-    }
-
-    // 4. Compute Personal Jam List (jika opsi useDynamicJam aktif)
-    let personalJamList: { j: string; n: number }[] = [];
-    if (params.useDynamicJam) {
-      // Fetch contents
-      const contentsData = await db
-        .select({ tanggal_upload: contents.tanggal_upload })
-        .from(contents)
-        .where(eq(contents.user_id, userId));
-
-      const jamMap: Record<string, number> = {};
-
-      contentsData.forEach((c) => {
-        if (c.tanggal_upload) {
-          const date = new Date(c.tanggal_upload);
-          const hStr = date.getHours().toString().padStart(2, "0") + ":00";
-          jamMap[hStr] = (jamMap[hStr] || 0) + 1;
-        }
-      });
-
-      personalJamList = Object.entries(jamMap)
-        .map(([j, n]) => ({ j, n }))
-        .sort((a, b) => b.n - a.n);
-    }
-
-    // 5. Default Competitor Jam List (BENCH_JAM)
-    const competitorJamList = [
-      { j: "08:00", n: 18 },
-      { j: "10:00", n: 37 },
-      { j: "12:00", n: 28 },
-      { j: "14:00", n: 30 },
-      { j: "16:00", n: 23 },
-      { j: "18:00", n: 18 },
-    ];
-
-    // 6. Generate Schedule using lib engine
-    const scheduleDaySlots = generateSchedule({
-      startDate: params.startDate,
-      rangeDays: params.rangeDays,
-      patternSlotsKey: params.patternSlotsKey,
-      winPct: params.winPct,
-      useDynamicJam: params.useDynamicJam,
-      useCooldown: params.useCooldown,
-      products: mappedProducts,
-      templates: typedTemplates,
-      competitorJamList,
-      personalJamList,
-    });
-
-    // 7. Simpan ke database
-    const newSchedule = {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      schedule_data: JSON.stringify(scheduleDaySlots),
-      created_at: new Date().toISOString(),
-    };
-
-    await db.insert(schedules).values(newSchedule);
+      .where(and(eq(schedules.user_id, user.id), eq(schedules.schedule_date, scheduleDate)));
 
     revalidatePath("/schedule");
 
     return {
       success: true,
-      message: "Jadwal cerdas berhasil di-generate dan disimpan.",
-      data: {
-        ...newSchedule,
-        schedule_data: scheduleDaySlots
-      },
+      message: `Berhasil menghapus seluruh slot jadwal pada tanggal ${scheduleDate}.`,
     };
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || "Gagal membuat jadwal baru.",
+      message: err.message || "Gagal menghapus jadwal.",
+    };
+  }
+}
+
+/**
+ * Mengambil parameter tuning skoring milik user.
+ */
+export async function getScoringParamsAction(): Promise<ActionResponse<Record<string, number>>> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+
+  try {
+    const params = await loadParams(user.id);
+    return {
+      success: true,
+      message: "Parameter scoring berhasil diambil.",
+      data: params,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal mengambil parameter skoring.",
+    };
+  }
+}
+
+/**
+ * Memperbarui parameter tuning skoring milik user.
+ */
+export async function updateScoringParamsAction(
+  params: Record<string, number>
+): Promise<ActionResponse> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+  const userId = user.id;
+
+  try {
+    // Validasi parameter
+    for (const [key, val] of Object.entries(params)) {
+      if (isNaN(val)) {
+        return { success: false, message: `Nilai parameter "${key}" harus berupa angka.` };
+      }
+    }
+
+    // Hapus parameter lama
+    await db
+      .delete(scoring_params)
+      .where(eq(scoring_params.user_id, userId));
+
+    // Insert parameter baru
+    const toInsert = Object.entries(params).map(([key, val]) => ({
+      id: "sp_" + crypto.randomUUID(),
+      user_id: userId,
+      param_key: key,
+      param_value: val,
+      updated_at: new Date().toISOString(),
+    }));
+
+    if (toInsert.length > 0) {
+      await db.insert(scoring_params).values(toInsert);
+    }
+
+    revalidatePath("/schedule");
+
+    return {
+      success: true,
+      message: "Parameter skoring berhasil diperbarui.",
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal memperbarui parameter skoring.",
+    };
+  }
+}
+
+/**
+ * Menghasilkan preview scoring (data mentah) tanpa menyimpannya ke database.
+ * Sangat berguna untuk di-render di tabel visual analisis skoring.
+ */
+export async function previewScoringAction(
+  startDateStr?: string,
+  paramsOverride?: Record<string, number>
+): Promise<ActionResponse<any>> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+
+  try {
+    const start = startDateStr ? new Date(startDateStr) : new Date();
+    const result = await generateDailySchedule(user.id, start, paramsOverride);
+    
+    return {
+      success: true,
+      message: "Preview skoring berhasil di-generate.",
+      data: result,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal melakukan preview skoring.",
     };
   }
 }

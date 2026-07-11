@@ -36,10 +36,10 @@ export default function Topbar({ title, scoringMode = "benchmark" }: TopbarProps
 
       {/* Status Bar */}
       <div className="flex items-center gap-3">
-        {/* Supabase connection indicator */}
+        {/* Database connection indicator */}
         <div className="flex items-center gap-2 text-[10px] text-text-placeholder">
           <div className="w-2 h-2 rounded-full bg-success shadow-[0_0_6px_var(--success)] animate-pulse-dot" />
-          <span className="font-semibold">Cloud Sync Aktif</span>
+          <span className="font-semibold">Local Database Aktif</span>
         </div>
 
         <div className="w-px h-4 bg-border-light" />

@@ -1,14 +1,14 @@
 // /*
-// Tujuan: Server Actions untuk pembaruan profil pengguna (nama tampilan, API key Gemini, dan model skoring default) di SQLite lokal.
+// Tujuan: Server Actions untuk pembaruan profil pengguna (nama tampilan, API key Gemini) di SQLite lokal.
 // Caller: Halaman Pengaturan (/settings)
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, next/cache (revalidatePath)
+// Dependensi: lib/db/index.ts, lib/auth.ts, next/cache (revalidatePath)
 // Main Functions: updateProfileAction
 // Side Effects: Mengubah baris data profil pengguna pada tabel `profiles` di SQLite lokal.
 // */
 
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -25,24 +25,14 @@ export interface ActionResponse {
 export async function updateProfileAction(data: {
   display_name?: string;
   gemini_api_key_encrypted?: string;
-  scoring_mode?: "benchmark" | "topsis";
 }): Promise<ActionResponse> {
-  const supabase = await createClient();
-
-  // 1. Verifikasi User
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getMockUser();
 
   if (!user) {
     return { success: false, message: "Sesi habis, silakan login ulang." };
   }
 
-  if (data.scoring_mode !== undefined) {
-    if (!["benchmark", "topsis"].includes(data.scoring_mode)) {
-      return { success: false, message: "Mode skoring tidak valid." };
-    }
-  }
+
 
   try {
     const defaultDisplayName = user.user_metadata?.display_name || user.email || 'Local User';
@@ -54,7 +44,6 @@ export async function updateProfileAction(data: {
         email: user.email || 'local@domain.com',
         display_name: data.display_name !== undefined ? (data.display_name.trim() || null) : defaultDisplayName,
         gemini_api_key_encrypted: data.gemini_api_key_encrypted !== undefined ? (data.gemini_api_key_encrypted.trim() || null) : null,
-        scoring_mode: data.scoring_mode || 'benchmark',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -63,7 +52,6 @@ export async function updateProfileAction(data: {
         set: {
           ...(data.display_name !== undefined ? { display_name: data.display_name.trim() || null } : {}),
           ...(data.gemini_api_key_encrypted !== undefined ? { gemini_api_key_encrypted: data.gemini_api_key_encrypted.trim() || null } : {}),
-          ...(data.scoring_mode !== undefined ? { scoring_mode: data.scoring_mode } : {}),
           updated_at: new Date().toISOString(),
         }
       });
@@ -72,7 +60,6 @@ export async function updateProfileAction(data: {
     revalidatePath("/settings");
     revalidatePath("/");
     revalidatePath("/products");
-    revalidatePath("/schedule");
     revalidatePath("/scripts");
 
     return {

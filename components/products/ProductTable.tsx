@@ -1,22 +1,22 @@
 // /*
-// Tujuan: Komponen Client berupa tabel master produk interaktif dengan seleksi checkbox untuk hapus massal (bulk delete).
+// Tujuan: Komponen Client berupa tabel master produk interaktif dengan seleksi checkbox, tampilan metrik, pemilih status stok, status kerjasama, dan ekspor CSV.
 // Caller: app/(dashboard)/products/page.tsx
-// Dependensi: app/actions/products.ts, types/index.ts, components/products/StatusSelector.tsx, components/products/AddProductDialog.tsx, components/products/EditProductDialog.tsx, lucide-react, next/navigation (useRouter)
+// Dependensi: app/actions/products.ts, types/index.ts, components/products/StatusSelector.tsx, components/products/StockStatusSelector.tsx, components/products/AddProductDialog.tsx, components/products/EditProductDialog.tsx, lucide-react, next/navigation (useRouter)
 // Main Functions: ProductTable
-// Side Effects: Mengaktifkan loading, memanggil deleteProductsBulkAction server action, refresh halaman setelah hapus.
+// Side Effects: Memanggil deleteProductsBulkAction server action.
 // */
 
 "use client";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, Trash2, AlertTriangle, Loader2, X, Info } from "lucide-react";
+import { ShoppingBag, Trash2, AlertTriangle, Loader2, X, Info, Download, RotateCcw } from "lucide-react";
 import { Product } from "@/types";
-import { fmt, fmtIDR } from "@/lib/utils/format";
 import StatusSelector from "./StatusSelector";
+import StockStatusSelector from "./StockStatusSelector";
 import AddProductDialog from "./AddProductDialog";
 import EditProductDialog from "./EditProductDialog";
-import { deleteProductsBulkAction } from "@/app/actions/products";
+import { deleteProductsBulkAction, resetProductTestingAction } from "@/app/actions/products";
 
 interface ProductTableProps {
   products: Product[];
@@ -27,7 +27,33 @@ export default function ProductTable({ products }: ProductTableProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resettingProduct, setResettingProduct] = useState<Product | null>(null);
+  const [resetting, setResetting] = useState(false);
   const router = useRouter();
+
+  const handleTriggerResetTesting = (product: Product) => {
+    setError(null);
+    setResettingProduct(product);
+  };
+
+  const handleExecuteResetTesting = async () => {
+    if (!resettingProduct) return;
+    setResetting(true);
+    setError(null);
+    try {
+      const res = await resetProductTestingAction(resettingProduct.product_id);
+      if (res.success) {
+        setResettingProduct(null);
+        router.refresh();
+      } else {
+        setError(res.message);
+      }
+    } catch (err: any) {
+      setError(err.message || "Gagal mereset testing produk.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const isAllSelected = products.length > 0 && selectedIds.length === products.length;
 
@@ -35,7 +61,7 @@ export default function ProductTable({ products }: ProductTableProps) {
     if (isAllSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(products.map((p) => p.id));
+      setSelectedIds(products.map((p) => p.product_id));
     }
   };
 
@@ -43,6 +69,72 @@ export default function ProductTable({ products }: ProductTableProps) {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "ID Produk",
+      "Nama Produk",
+      "Nama Toko",
+      "Kode Toko",
+      "Kategori",
+      "Status Stok",
+      "Status Aktif",
+      "Tanggal Ditambahkan",
+      "Kerjasama",
+      "Target Kolaborasi",
+      "Mulai Kolaborasi",
+      "Deadline Kolaborasi"
+    ];
+    const keys = [
+      "product_id",
+      "product_name",
+      "shop_name",
+      "shop_code",
+      "category",
+      "stock_status",
+      "status",
+      "date_added",
+      "is_collaboration",
+      "collab_target_count",
+      "collab_start_date",
+      "collab_deadline"
+    ];
+
+    const exportData = products.map((p) => ({
+      ...p,
+      is_collaboration: p.is_collaboration ? "Ya" : "Tidak",
+      collab_target_count: p.collab_target_count ?? "",
+      collab_start_date: p.collab_start_date ?? "",
+      collab_deadline: p.collab_deadline ?? ""
+    }));
+
+    const csvContent = [
+      headers.join(","),
+      ...exportData.map((item) =>
+        keys.map((key) => {
+          let val = item[key as keyof typeof item];
+          if (val === null || val === undefined) {
+            val = "";
+          }
+          val = String(val);
+          if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes(";")) {
+            val = `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        }).join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `master_produk_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleBulkDelete = async () => {
@@ -85,8 +177,16 @@ export default function ProductTable({ products }: ProductTableProps) {
             </button>
           )}
         </div>
-        {/* Modal Tambah Produk Baru */}
-        <AddProductDialog />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 bg-white hover:bg-bg-panel text-text-muted border border-border-light hover:border-border-active text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5 text-text-placeholder" />
+            <span>Ekspor CSV</span>
+          </button>
+          <AddProductDialog />
+        </div>
       </div>
 
       <div className="overflow-x-auto border border-border-light rounded-lg">
@@ -105,16 +205,7 @@ export default function ProductTable({ products }: ProductTableProps) {
               <th className="p-3">Nama Produk</th>
               <th className="p-3">Toko / Seller</th>
               <th className="p-3">Kategori</th>
-              <th className="p-3">Harga</th>
-              <th className="p-3">Komisi</th>
-              <th className="p-3 text-center">Orders</th>
-              <th className="p-3 text-center">Net Sold</th>
-              <th className="p-3 text-center">Revenue</th>
-              <th className="p-3 text-center">GMV Max %</th>
-              <th className="p-3 text-center">Regularity</th>
-              <th className="p-3 text-center">Skor</th>
-              <th className="p-3 text-center">Klasifikasi</th>
-              <th className="p-3 text-center">Kuota/Mg</th>
+              <th className="p-3 text-center">Stok</th>
               <th className="p-3 text-center">Status</th>
               <th className="p-3 text-center">Aksi</th>
             </tr>
@@ -122,66 +213,31 @@ export default function ProductTable({ products }: ProductTableProps) {
           <tbody className="divide-y divide-border-light">
             {products.length > 0 ? (
               products.map((p) => {
-                let badgeStyles = "bg-bg text-text-placeholder border-border-light";
-                switch (p.klasifikasi) {
-                  case "COLLABORATION":
-                    badgeStyles = "bg-purple-50 text-purple-600 border-purple-200";
-                    break;
-                  case "RESTOCK_CONFIRMED":
-                    badgeStyles = "bg-emerald-50 text-emerald-600 border-emerald-200";
-                    break;
-                  case "PROVEN_WINNER":
-                    badgeStyles = "bg-success-bg text-success border-success-border";
-                    break;
-                  case "GMV_ACTIVE":
-                    badgeStyles = "bg-teal-50 text-teal-600 border-teal-200";
-                    break;
-                  case "RESTOCK_RECOVERY":
-                    badgeStyles = "bg-blue-50 text-blue-600 border-blue-200";
-                    break;
-                  case "GROWING":
-                    badgeStyles = "bg-info-bg text-info border-info-border";
-                    break;
-                  case "EARLY_STAGE":
-                    badgeStyles = "bg-warning-bg text-warning border-warning-border";
-                    break;
-                  case "MONITOR":
-                    badgeStyles = "bg-gray-50 text-gray-600 border-gray-200";
-                    break;
-                  case "SPIKE_ONLY":
-                    badgeStyles = "bg-amber-50 text-amber-600 border-amber-200";
-                    break;
-                  case "STAGNANT":
-                    badgeStyles = "bg-danger-bg text-danger border-danger-border";
-                    break;
-                  case "DECLINING":
-                    badgeStyles = "bg-orange-50 text-orange-600 border-orange-200";
-                    break;
-                }
 
-                const isSelected = selectedIds.includes(p.id);
+
+                const isSelected = selectedIds.includes(p.product_id);
 
                 return (
-                  <tr key={p.id} className={`hover:bg-bg-panel transition-colors ${isSelected ? "bg-bg-panel" : ""}`}>
+                  <tr key={p.product_id} className={`hover:bg-bg-panel transition-colors ${isSelected ? "bg-bg-panel" : ""}`}>
                     {/* Checkbox cell */}
                     <td className="p-3 text-center align-middle">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => toggleSelect(p.id)}
+                        onChange={() => toggleSelect(p.product_id)}
                         className="rounded text-accent focus:ring-accent w-4 h-4 border-border-light cursor-pointer"
                       />
                     </td>
                     <td className="p-3">
                       <div className="font-bold text-text-main max-w-xs truncate">
-                        {p.nama}
+                        {p.product_name}
                       </div>
-                      <div className="text-[10px] text-text-placeholder mt-0.5">
-                        Brand: {p.brand || "—"} · Jenis: {p.jenis || "—"}
+                      <div className="text-[10px] text-text-placeholder mt-0.5 font-mono">
+                        ID: {p.product_id || "—"}
                       </div>
-                      {p.is_kerjasama && (
+                      {p.is_collaboration && (
                         <span className="inline-flex mt-1 items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100 text-[9px] font-bold">
-                          🤝 Kerjasama ({p.kerjasama_target}x)
+                          🤝 Kerjasama ({p.collab_target_count}x)
                         </span>
                       )}
                     </td>
@@ -192,47 +248,24 @@ export default function ProductTable({ products }: ProductTableProps) {
                       </div>
                     </td>
                     <td className="p-3 font-semibold text-text-muted">
-                      {p.kategori}
-                    </td>
-                    <td className="p-3 font-mono font-medium text-text-main">
-                      {fmtIDR(p.harga)}
-                    </td>
-                    <td className="p-3 font-mono font-medium text-success">
-                      {p.avg_commission_rate > 0 ? `${p.avg_commission_rate.toFixed(1)}%` : `${p.komisi}%`}
-                    </td>
-                    <td className="p-3 text-center font-mono font-medium text-text-main">
-                      {fmt(p.total_orders || 0)}
-                    </td>
-                    <td className="p-3 text-center font-mono font-medium text-text-main">
-                      {fmt(p.net_items_sold || 0)}
-                    </td>
-                    <td className="p-3 text-center font-mono font-bold text-success">
-                      {fmtIDR(p.total_revenue || 0)}
-                    </td>
-                    <td className="p-3 text-center font-mono font-medium text-text-main">
-                      {Math.round((p.shop_ads_ratio || 0) * 100)}%
-                    </td>
-                    <td className="p-3 text-center font-mono font-semibold text-text-main">
-                      {p.regularity_score ? p.regularity_score.toFixed(0) : 0}
-                    </td>
-                    <td className="p-3 text-center font-mono font-bold text-text-main">
-                      {p.bench_score}
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide ${badgeStyles}`}>
-                        {p.klasifikasi}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center font-mono font-bold text-accent">
-                      {p.kuota_mingguan}x
+                      {p.category}
                     </td>
                     <td className="p-3 text-center align-middle">
-                      {/* Dropdown pemilih status interaktif */}
-                      <StatusSelector productId={p.id} initialStatus={p.status} />
+                      <StockStatusSelector productId={p.product_id} initialStockStatus={p.stock_status} />
+                    </td>
+                    <td className="p-3 text-center align-middle">
+                      <StatusSelector productId={p.product_id} initialStatus={p.status} />
                     </td>
                     <td className="p-3 text-center">
-                      <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         <EditProductDialog product={p} />
+                        <button
+                          onClick={() => handleTriggerResetTesting(p)}
+                          title="Reset siklus testing produk"
+                          className="p-1 hover:bg-bg-panel text-text-placeholder hover:text-accent rounded-lg transition-all cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -240,7 +273,7 @@ export default function ProductTable({ products }: ProductTableProps) {
               })
             ) : (
               <tr>
-                <td colSpan={16} className="p-8 text-center text-text-placeholder">
+                <td colSpan={7} className="p-8 text-center text-text-placeholder">
                   Belum ada data produk. Silakan tambah produk baru secara manual di atas atau melalui menu **Impor Data**.
                 </td>
               </tr>
@@ -252,12 +285,9 @@ export default function ProductTable({ products }: ProductTableProps) {
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          {/* Backdrop Click */}
           <div className="absolute inset-0" onClick={() => !deleting && setShowConfirmModal(false)} />
 
-          {/* Modal Container */}
           <div className="bg-white border border-border-light rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative z-10 transform transition-all duration-300 scale-95 animate-in zoom-in-95 duration-200 flex flex-col">
-            {/* Header */}
             <div className="px-5 py-4 border-b border-border-light flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 bg-danger/10 border border-danger/20 text-danger rounded-lg flex items-center justify-center">
@@ -276,7 +306,6 @@ export default function ProductTable({ products }: ProductTableProps) {
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-5 space-y-4 text-center">
               <div className="mx-auto w-12 h-12 bg-danger-bg border border-danger-border text-danger rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 animate-bounce" />
@@ -319,6 +348,80 @@ export default function ProductTable({ products }: ProductTableProps) {
                     </>
                   ) : (
                     "Ya, Hapus Semua"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Testing Confirmation Modal */}
+      {resettingProduct && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => !resetting && setResettingProduct(null)} />
+
+          <div className="bg-white border border-border-light rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative z-10 transform transition-all duration-300 scale-95 animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="px-5 py-4 border-b border-border-light flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-accent/10 border border-accent/20 text-accent rounded-lg flex items-center justify-center">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </div>
+                <h3 className="font-extrabold text-sm text-text-main tracking-tight">
+                  Konfirmasi Reset Testing
+                </h3>
+              </div>
+              <button
+                onClick={() => setResettingProduct(null)}
+                disabled={resetting}
+                className="text-text-placeholder hover:text-text-muted p-1 rounded-lg hover:bg-bg-panel transition-all cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-center">
+              <div className="mx-auto w-12 h-12 bg-accent/10 border border-accent/20 text-accent rounded-full flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 animate-spin-slow" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-bold text-xs text-text-main">
+                  Reset siklus testing produk?
+                </h4>
+                <p className="text-[10px] text-text-placeholder px-4 leading-relaxed">
+                  Apakah Anda yakin ingin mereset testing untuk produk <strong className="text-text-muted font-extrabold">{resettingProduct.product_name}</strong>? Tindakan ini akan mengosongkan jumlah konten terhitung untuk keperluan scoring (status produk akan kembali bersih seperti produk baru). Data riwayat postingan fisik di TikTok tidak akan dihapus.
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-danger-bg border border-danger-border text-danger text-[11px] rounded-lg font-semibold flex gap-2 text-left">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setResettingProduct(null)}
+                  disabled={resetting}
+                  className="px-4 py-2 bg-bg border border-border-light hover:border-border-active text-text-muted rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteResetTesting}
+                  disabled={resetting}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 shadow-[0_2px_6px_rgba(var(--color-accent),0.15)]"
+                >
+                  {resetting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mereset...</span>
+                    </>
+                  ) : (
+                    "Ya, Reset Testing"
                   )}
                 </button>
               </div>

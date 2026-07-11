@@ -1,6 +1,6 @@
 // /*
-// Tujuan: Komponen Client dropdown pemilihan status keaktifan produk secara instan (inline status changer).
-// Caller: app/(dashboard)/products/page.tsx (tabel produk)
+// Tujuan: Komponen Client berupa dropdown pemilihan status keaktifan produk secara instan (inline status changer) dengan status baru.
+// Caller: components/products/ProductTable.tsx (tabel produk)
 // Dependensi: app/actions/products.ts, lucide-react
 // Main Functions: StatusSelector
 // Side Effects: Memanggil updateProductStatusAction server action dan melakukan trigger refresh router.
@@ -11,20 +11,22 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Loader2 } from "lucide-react";
 import { updateProductStatusAction } from "@/app/actions/products";
+import { useRouter } from "next/navigation";
 
 interface StatusSelectorProps {
   productId: string;
-  initialStatus: "aktif" | "jeda" | "habis";
+  initialStatus: "active" | "paused" | "stopped";
 }
 
 export default function StatusSelector({
   productId,
   initialStatus,
 }: StatusSelectorProps) {
-  const [status, setStatus] = useState<"aktif" | "jeda" | "habis">(initialStatus);
+  const [status, setStatus] = useState<"active" | "paused" | "stopped">(initialStatus);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Close dropdown if clicking outside
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function StatusSelector({
     };
   }, []);
 
-  const handleStatusChange = async (newStatus: "aktif" | "jeda" | "habis") => {
+  const handleStatusChange = async (newStatus: "active" | "paused" | "stopped") => {
     if (newStatus === status) {
       setIsOpen(false);
       return;
@@ -55,6 +57,7 @@ export default function StatusSelector({
       const res = await updateProductStatusAction(productId, newStatus);
       if (res.success) {
         setStatus(newStatus);
+        router.refresh();
       } else {
         alert(res.message);
       }
@@ -66,24 +69,24 @@ export default function StatusSelector({
   };
 
   const statusConfig = {
-    aktif: {
+    active: {
       dot: "bg-emerald-500",
       text: "Aktif",
-      btnClass: "bg-success-bg border-success-border text-success hover:bg-emerald-100/50",
+      btnClass: "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/50",
     },
-    jeda: {
+    paused: {
       dot: "bg-amber-500",
       text: "Jeda",
-      btnClass: "bg-warning-bg border-warning-border text-warning hover:bg-amber-100/50",
+      btnClass: "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/50",
     },
-    habis: {
+    stopped: {
       dot: "bg-rose-500",
-      text: "Habis",
-      btnClass: "bg-danger-bg border-danger-border text-danger hover:bg-rose-100/50",
+      text: "Berhenti",
+      btnClass: "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100/50",
     },
   };
 
-  const current = statusConfig[status];
+  const current = statusConfig[status] || statusConfig.active;
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -95,7 +98,7 @@ export default function StatusSelector({
         }`}
       >
         {loading ? (
-          <Loader2 className="w-3 h-3 animate-spin text-text-placeholder" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-text-placeholder" />
         ) : (
           <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} />
         )}
@@ -109,7 +112,7 @@ export default function StatusSelector({
 
       {isOpen && (
         <div className="absolute right-0 mt-1 w-28 bg-white border border-border-light rounded-xl shadow-lg z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
-          {(["aktif", "jeda", "habis"] as const).map((s) => {
+          {(["active", "paused", "stopped"] as const).map((s) => {
             const active = s === status;
             const config = statusConfig[s];
             return (

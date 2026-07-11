@@ -1,3 +1,11 @@
+# """
+# Tujuan: Skrip Python untuk menarik data performa video dari profil TikTok publik.
+# Caller: app/api/scrape/route.ts
+# Dependensi: yt-dlp, pandas, openpyxl
+# Main Functions: scrape_tiktok, custom_scrape_fallback
+# Side Effects: Melakukan HTTP requests ke TikTok embed API, menulis file Excel jika tidak dipanggil dengan --json.
+# """
+
 import yt_dlp
 import pandas as pd
 from openpyxl import load_workbook
@@ -11,9 +19,9 @@ import os, time, random, sys, json, argparse
 # ============================================================
 USER_DEFAULT     = "dutaparfumlokal"
 HARI_DEFAULT     = 1
-BATAS_DEFAULT    = 200
-DELAY_MIN        = 1.5
-DELAY_MAX        = 3.5
+BATAS_DEFAULT    = 400
+DELAY_MIN        = 2.0
+DELAY_MAX        = 4.5
 # ============================================================
 
 KAMUS_HARI = {
@@ -175,8 +183,13 @@ def custom_scrape_fallback(username, rentang_hari, batas):
                         dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(WIB)
                         if dt < batas_waktu:
                             # Hentikan request video berikutnya karena sudah di luar rentang hari (descending order)
-                            log_print(f"\n⛔ #{idx} tgl {dt.strftime('%d/%m/%Y')} — di luar rentang. Berhenti.")
-                            break
+                            # KECUALI jika berada di 3 video pertama (kemungkinan Pinned Video yang tanggalnya lama)
+                            if idx <= 3:
+                                log_print(f"  📌 #{idx} tgl {dt.strftime('%d/%m/%Y')} — Terdeteksi di luar rentang tapi dilewati karena berada di urutan awal (kemungkinan Pinned Video).")
+                                continue
+                            else:
+                                log_print(f"\n⛔ #{idx} tgl {dt.strftime('%d/%m/%Y')} — di luar rentang. Berhenti.")
+                                break
                         tanggal = dt.strftime('%d/%m/%Y')
                         jam     = dt.strftime('%H:%M')
                         hari    = KAMUS_HARI.get(dt.strftime('%A'), dt.strftime('%A'))
@@ -256,8 +269,14 @@ def scrape_tiktok(username, rentang_hari, batas):
                     if ts:
                         dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(WIB)
                         if dt < batas_waktu:
-                            log_print(f"\n⛔ #{i} tgl {dt.strftime('%d/%m/%Y')} — di luar rentang. Berhenti.")
-                            break
+                            # Hentikan request video berikutnya karena sudah di luar rentang hari (descending order)
+                            # KECUALI jika berada di 3 video pertama (kemungkinan Pinned Video yang tanggalnya lama)
+                            if i <= 3:
+                                log_print(f"  📌 #{i} tgl {dt.strftime('%d/%m/%Y')} — Terdeteksi di luar rentang tapi dilewati karena berada di urutan awal (kemungkinan Pinned Video).")
+                                continue
+                            else:
+                                log_print(f"\n⛔ #{i} tgl {dt.strftime('%d/%m/%Y')} — di luar rentang. Berhenti.")
+                                break
                         tanggal = dt.strftime('%d/%m/%Y')
                         jam     = dt.strftime('%H:%M')
                         hari    = KAMUS_HARI.get(dt.strftime('%A'), dt.strftime('%A'))

@@ -1,17 +1,16 @@
-// /*
-// Tujuan: Halaman Riwayat Konten (Server Component) untuk menyajikan log performa video terpaginasi dengan pencarian, filter tanggal, & kontrol Live Scraper.
+// Tujuan: Halaman Riwayat Konten (Server Component) untuk menyajikan log performa video terpaginasi dengan pencarian, filter tanggal, filter produk, & kontrol Live Scraper.
 // Caller: Route /history
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, components/layout/Topbar.tsx, components/history/ScraperPanel.tsx, components/history/ContentHistoryTable.tsx
+// Dependensi: lib/db/index.ts, lib/auth.ts, types/index.ts, components/layout/Topbar.tsx, components/history/ScraperPanel.tsx, components/history/ContentHistoryTable.tsx
 // Main Functions: ContentHistoryPage
 // Side Effects: Mengambil data konten terpaginasi & terfilter, serta data master produk dari SQLite lokal.
 // */
 
 import React from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contents as contentsTable, products as productsTable } from "@/lib/db/schema";
-import { eq, desc, and, gte, lte, like, or, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, or, count, sql, asc } from "drizzle-orm";
 import Topbar from "@/components/layout/Topbar";
 import ScraperPanel from "@/components/history/ScraperPanel";
 import ContentHistoryTable from "@/components/history/ContentHistoryTable";
@@ -24,16 +23,13 @@ interface PageProps {
     startDate?: string;
     endDate?: string;
     limit?: string;
+    productId?: string;
+    sortBy?: string;
   }>;
 }
 
 export default async function ContentHistoryPage({ searchParams }: PageProps) {
-  const supabase = await createClient();
-
-  // 1. Verifikasi User
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getMockUser();
 
   if (!user) {
     redirect("/login");
@@ -49,6 +45,8 @@ export default async function ContentHistoryPage({ searchParams }: PageProps) {
   const searchVal = params.search || "";
   const startDateVal = params.startDate || "";
   const endDateVal = params.endDate || "";
+  const productIdVal = params.productId || "";
+  const sortByVal = params.sortBy || "";
 
   // 3. Bangun kondisi query
   const conditions = [eq(contentsTable.user_id, user.id)];
@@ -70,6 +68,10 @@ export default async function ContentHistoryPage({ searchParams }: PageProps) {
     conditions.push(lte(contentsTable.tanggal_upload, `${endDateVal}T23:59:59.999Z`));
   }
 
+  if (productIdVal) {
+    conditions.push(eq(contentsTable.product_id, productIdVal));
+  }
+
   // 4. Hitung total data terfilter
   const totalCountResult = await db
     .select({ value: count() })
@@ -79,23 +81,34 @@ export default async function ContentHistoryPage({ searchParams }: PageProps) {
   const totalRows = totalCountResult[0]?.value || 0;
   const totalPages = Math.ceil(totalRows / limitNum);
 
-  // 5. Fetch data konten terpaginasi
+  // 5. Bangun order by
+  const orderConditions = [];
+  if (sortByVal === "no_product_first") {
+    orderConditions.push(
+      asc(sql`CASE WHEN product_id IS NULL THEN 0 ELSE 1 END`),
+      desc(contentsTable.tanggal_upload)
+    );
+  } else {
+    orderConditions.push(desc(contentsTable.tanggal_upload));
+  }
+
+  // 6. Fetch data konten terpaginasi
   const contents = await db
     .select()
     .from(contentsTable)
     .where(and(...conditions)!)
-    .orderBy(desc(contentsTable.tanggal_upload))
+    .orderBy(...orderConditions)
     .limit(limitNum)
     .offset(offsetNum);
 
   const typedContents = (contents || []) as unknown as Content[];
 
-  // 6. Fetch seluruh data produk master untuk user dari SQLite lokal (untuk dropdown)
+  // 7. Fetch seluruh data produk master untuk user dari SQLite lokal (untuk dropdown)
   const products = await db
     .select()
     .from(productsTable)
     .where(eq(productsTable.user_id, user.id))
-    .orderBy(productsTable.nama);
+    .orderBy(productsTable.product_name);
 
   const typedProducts = (products || []) as unknown as Product[];
 
@@ -118,6 +131,8 @@ export default async function ContentHistoryPage({ searchParams }: PageProps) {
           search={searchVal}
           startDate={startDateVal}
           endDate={endDateVal}
+          productId={productIdVal}
+          sortBy={sortByVal}
         />
       </div>
     </div>

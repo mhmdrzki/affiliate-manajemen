@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fa03a10b-01ca-4340-bfba-764067c10e28",
+  "id": "8fc3c238-0ef4-4681-a428-c9fc8e4351f8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contents": {
@@ -42,14 +42,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "durasi": {
-          "name": "durasi",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "views": {
           "name": "views",
           "type": "integer",
@@ -82,29 +74,6 @@
           "autoincrement": false,
           "default": 0
         },
-        "gmv": {
-          "name": "gmv",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "est_komisi": {
-          "name": "est_komisi",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "tiktok_content_id": {
-          "name": "tiktok_content_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "content_type": {
           "name": "content_type",
           "type": "text",
@@ -112,22 +81,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'Video'"
-        },
-        "total_orders": {
-          "name": "total_orders",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_revenue": {
-          "name": "total_revenue",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         },
         "likes": {
           "name": "likes",
@@ -153,6 +106,13 @@
           "autoincrement": false,
           "default": 0
         },
+        "tiktok_content_id": {
+          "name": "tiktok_content_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "link_video": {
           "name": "link_video",
           "type": "text",
@@ -169,413 +129,27 @@
           "default": "(CURRENT_TIMESTAMP)"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "contents_tiktok_content_id_unique": {
+          "name": "contents_tiktok_content_id_unique",
+          "columns": [
+            "tiktok_content_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
-        "contents_product_id_products_id_fk": {
-          "name": "contents_product_id_products_id_fk",
+        "contents_product_id_products_product_id_fk": {
+          "name": "contents_product_id_products_product_id_fk",
           "tableFrom": "contents",
           "tableTo": "products",
           "columnsFrom": [
             "product_id"
           ],
           "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "import_logs": {
-      "name": "import_logs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "filename": {
-          "name": "filename",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "inserted_count": {
-          "name": "inserted_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "updated_count": {
-          "name": "updated_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "skipped_count": {
-          "name": "skipped_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "orders": {
-      "name": "orders",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tiktok_order_id": {
-          "name": "tiktok_order_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "content_id": {
-          "name": "content_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sku_id": {
-          "name": "sku_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "product_name": {
-          "name": "product_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "items_sold": {
-          "name": "items_sold",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "items_refunded": {
-          "name": "items_refunded",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "price": {
-          "name": "price",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "gmv": {
-          "name": "gmv",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "order_type": {
-          "name": "order_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'affiliate'"
-        },
-        "settlement_status": {
-          "name": "settlement_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'Pending'"
-        },
-        "commission_rate": {
-          "name": "commission_rate",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "est_commission": {
-          "name": "est_commission",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "actual_commission": {
-          "name": "actual_commission",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_final_earned": {
-          "name": "total_final_earned",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "shop_name": {
-          "name": "shop_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "shop_code": {
-          "name": "shop_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "order_date": {
-          "name": "order_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "settlement_date": {
-          "name": "settlement_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "import_log_id": {
-          "name": "import_log_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
-        }
-      },
-      "indexes": {
-        "idx_orders_dedup": {
-          "name": "idx_orders_dedup",
-          "columns": [
-            "user_id",
-            "tiktok_order_id",
-            "sku_id"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "orders_product_id_products_id_fk": {
-          "name": "orders_product_id_products_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "products",
-          "columnsFrom": [
             "product_id"
           ],
-          "columnsTo": [
-            "id"
-          ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "orders_content_id_contents_id_fk": {
-          "name": "orders_content_id_contents_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "contents",
-          "columnsFrom": [
-            "content_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "orders_import_log_id_import_logs_id_fk": {
-          "name": "orders_import_log_id_import_logs_id_fk",
-          "tableFrom": "orders",
-          "tableTo": "import_logs",
-          "columnsFrom": [
-            "import_log_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "period_snapshots": {
-      "name": "period_snapshots",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "content_id": {
-          "name": "content_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "views": {
-          "name": "views",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "ctr": {
-          "name": "ctr",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "ctor": {
-          "name": "ctor",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "items_sold": {
-          "name": "items_sold",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "gmv": {
-          "name": "gmv",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "period_snapshots_content_id_contents_id_fk": {
-          "name": "period_snapshots_content_id_contents_id_fk",
-          "tableFrom": "period_snapshots",
-          "tableTo": "contents",
-          "columnsFrom": [
-            "content_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -586,8 +160,8 @@
     "products": {
       "name": "products",
       "columns": {
-        "id": {
-          "name": "id",
+        "product_id": {
+          "name": "product_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
@@ -600,127 +174,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "nama": {
-          "name": "nama",
+        "product_name": {
+          "name": "product_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "brand": {
-          "name": "brand",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "jenis": {
-          "name": "jenis",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "harga": {
-          "name": "harga",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "komisi": {
-          "name": "komisi",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "kategori": {
-          "name": "kategori",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'Umum'"
-        },
-        "label_prestasi": {
-          "name": "label_prestasi",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'-'"
-        },
-        "gmv_aktif": {
-          "name": "gmv_aktif",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'aktif'"
-        },
-        "desc_variants": {
-          "name": "desc_variants",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "bench_score": {
-          "name": "bench_score",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "topsis_score": {
-          "name": "topsis_score",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "klasifikasi": {
-          "name": "klasifikasi",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'MONITOR'"
-        },
-        "slot_rek": {
-          "name": "slot_rek",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "score_mode": {
-          "name": "score_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'benchmark'"
-        },
-        "tiktok_product_id": {
-          "name": "tiktok_product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "shop_name": {
@@ -737,121 +195,66 @@
           "notNull": false,
           "autoincrement": false
         },
-        "avg_commission_rate": {
-          "name": "avg_commission_rate",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_revenue": {
-          "name": "total_revenue",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_orders": {
-          "name": "total_orders",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "net_items_sold": {
-          "name": "net_items_sold",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "total_refunded": {
-          "name": "total_refunded",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "kuota_mingguan": {
-          "name": "kuota_mingguan",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "aksi_rekomendasi": {
-          "name": "aksi_rekomendasi",
+        "category": {
+          "name": "category",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "''"
+          "default": "'Umum'"
         },
-        "shop_ads_ratio": {
-          "name": "shop_ads_ratio",
-          "type": "real",
+        "stock_status": {
+          "name": "stock_status",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "'unknown'"
         },
-        "regularity_score": {
-          "name": "regularity_score",
-          "type": "real",
+        "date_added": {
+          "name": "date_added",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "(CURRENT_TIMESTAMP)"
         },
-        "is_kerjasama": {
-          "name": "is_kerjasama",
+        "is_collaboration": {
+          "name": "is_collaboration",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": false
         },
-        "kerjasama_target": {
-          "name": "kerjasama_target",
+        "collab_target_count": {
+          "name": "collab_target_count",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "collab_deadline": {
+          "name": "collab_deadline",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "collab_start_date": {
+          "name": "collab_start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
-        },
-        "kerjasama_deadline": {
-          "name": "kerjasama_deadline",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_oos_started_at": {
-          "name": "last_oos_started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_oos_ended_at": {
-          "name": "last_oos_ended_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "pre_oos_classification": {
-          "name": "pre_oos_classification",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "default": "'active'"
         },
         "created_at": {
           "name": "created_at",
@@ -907,14 +310,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "scoring_mode": {
-          "name": "scoring_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'benchmark'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -938,25 +333,88 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "schedules": {
-      "name": "schedules",
+    "sales_data": {
+      "name": "sales_data",
       "columns": {
-        "id": {
-          "name": "id",
+        "order_id": {
+          "name": "order_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
         },
-        "user_id": {
-          "name": "user_id",
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "contents_id": {
+          "name": "contents_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "order_type": {
+          "name": "order_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "schedule_data": {
-          "name": "schedule_data",
+        "price": {
+          "name": "price",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "items_sold": {
+          "name": "items_sold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gmv": {
+          "name": "gmv",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "est_commission": {
+          "name": "est_commission",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actual_commission": {
+          "name": "actual_commission",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "settlement_status": {
+          "name": "settlement_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ordered_at": {
+          "name": "ordered_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -972,72 +430,31 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "stock_history": {
-      "name": "stock_history",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "changed_at": {
-          "name": "changed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(CURRENT_TIMESTAMP)"
-        },
-        "changed_by": {
-          "name": "changed_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
       "foreignKeys": {
-        "stock_history_product_id_products_id_fk": {
-          "name": "stock_history_product_id_products_id_fk",
-          "tableFrom": "stock_history",
+        "sales_data_product_id_products_product_id_fk": {
+          "name": "sales_data_product_id_products_product_id_fk",
+          "tableFrom": "sales_data",
           "tableTo": "products",
           "columnsFrom": [
             "product_id"
           ],
           "columnsTo": [
-            "id"
+            "product_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "sales_data_contents_id_contents_tiktok_content_id_fk": {
+          "name": "sales_data_contents_id_contents_tiktok_content_id_fk",
+          "tableFrom": "sales_data",
+          "tableTo": "contents",
+          "columnsFrom": [
+            "contents_id"
+          ],
+          "columnsTo": [
+            "tiktok_content_id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

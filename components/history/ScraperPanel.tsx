@@ -1,7 +1,7 @@
 "use client";
 
 // /*
-// Tujuan: Panel input interaktif klien-side untuk memicu scraper TikTok via API route `/api/scrape`.
+// Tujuan: Panel input interaktif klien-side untuk memicu scraper TikTok via API route `/api/scrape` dengan input rentang waktu manual.
 // Caller: app/(dashboard)/history/page.tsx
 // Dependensi: next/navigation (useRouter), lucide-react
 // Main Functions: ScraperPanel
@@ -106,18 +106,20 @@ export default function ScraperPanel() {
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">
               Rentang Waktu
             </label>
-            <select
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              disabled={loading}
-              className="w-full bg-bg border border-border focus:border-accent text-xs rounded-lg py-2 px-3 text-text-main outline-none transition-all cursor-pointer"
-            >
-              <option value="1">1 Hari Terakhir</option>
-              <option value="3">3 Hari Terakhir</option>
-              <option value="7">7 Hari Terakhir</option>
-              <option value="14">14 Hari Terakhir</option>
-              <option value="30">30 Hari Terakhir</option>
-            </select>
+            <div className="relative">
+              <input
+                type="number"
+                min="1"
+                value={days}
+                onChange={(e) => setDays(e.target.value)}
+                placeholder="3"
+                disabled={loading}
+                className="w-full bg-bg border border-border focus:border-accent text-xs rounded-lg py-2 pl-3 pr-12 text-text-main placeholder-text-muted/50 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="absolute right-3 top-2.5 text-xs text-text-muted font-semibold pointer-events-none">
+                Hari
+              </span>
+            </div>
           </div>
         </div>
 

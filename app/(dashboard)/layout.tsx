@@ -1,13 +1,13 @@
 // /*
-// Tujuan: Menyediakan layout utama server-side untuk halaman terproteksi, mengamankan rute via Supabase Auth, dan menyisipkan Sidebar.
+// Tujuan: Menyediakan layout utama server-side untuk halaman terproteksi, mengamankan rute via Mock Auth, dan menyisipkan Sidebar.
 // Caller: Seluruh rute di dalam grup (dashboard)
-// Dependensi: next/navigation, lib/supabase/server.ts, components/layout/Sidebar.tsx
+// Dependensi: next/navigation, lib/auth.ts, components/layout/Sidebar.tsx
 // Main Functions: DashboardLayout
-// Side Effects: Mengecek sesi aktif ke Supabase Auth, mengalihkan rute jika tidak valid.
+// Side Effects: Mengecek sesi aktif ke Mock Auth, mengalihkan rute jika tidak valid.
 // */
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import Sidebar from "@/components/layout/Sidebar";
 
 export default async function DashboardLayout({
@@ -15,12 +15,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  // Validasi sesi user secara server-side
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getMockUser();
 
   if (!user) {
     redirect("/login");

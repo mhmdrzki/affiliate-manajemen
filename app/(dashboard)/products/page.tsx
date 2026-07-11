@@ -1,14 +1,13 @@
-// /*
 // Tujuan: Halaman UI Master Produk untuk mengelola produk dengan data tabel interaktif (ProductTable) berkemampuan hapus massal di SQLite lokal.
 // Caller: Route /products
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, components/layout/Topbar.tsx, components/products/ProductTable.tsx
+// Dependensi: lib/db/index.ts, lib/auth.ts, types/index.ts, components/layout/Topbar.tsx, components/products/ProductTable.tsx
 // Main Functions: ProductsPage
 // Side Effects: Mengambil data produk dari SQLite lokal.
 // */
 
 import React from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { products as productsTable } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -17,12 +16,7 @@ import { Product } from "@/types";
 import ProductTable from "@/components/products/ProductTable";
 
 export default async function ProductsPage() {
-  const supabase = await createClient();
-
-  // 1. Verifikasi User
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getMockUser();
 
   if (!user) {
     redirect("/login");
@@ -33,12 +27,9 @@ export default async function ProductsPage() {
     .select()
     .from(productsTable)
     .where(eq(productsTable.user_id, user.id))
-    .orderBy(desc(productsTable.bench_score));
+    .orderBy(desc(productsTable.date_added));
 
-  const typedProducts = (products || []).map(p => ({
-    ...p,
-    desc_variants: p.desc_variants ? JSON.parse(p.desc_variants) : [],
-  })) as unknown as Product[];
+  const typedProducts = products as unknown as Product[];
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-bg">

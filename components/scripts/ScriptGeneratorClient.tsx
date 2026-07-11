@@ -1,14 +1,15 @@
 // /*
 // Tujuan: Komponen Client UI untuk formulir konfigurasi generator naskah AI dan panel penampil 3 variasi naskah video TikTok.
 // Caller: app/(dashboard)/scripts/page.tsx
-// Dependensi: app/actions/products.ts, types/index.ts, lucide-react, next/navigation (useRouter)
+// Dependensi: app/actions/products.ts, types/index.ts, lucide-react, next/navigation (useRouter, useSearchParams)
 // Main Functions: ScriptGeneratorClient
 // Side Effects: Mengirimkan HTTP POST request ke server proxy /api/ai, memicu Server Action saveProductDescVariantAction.
 // */
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Product } from "@/types";
 import { saveProductDescVariantAction } from "@/app/actions/products";
 import {
@@ -41,6 +42,9 @@ export default function ScriptGeneratorClient({
   const [style, setStyle] = useState("onetake");
   const [saveProdId, setSaveProdId] = useState("");
 
+  const searchParams = useSearchParams();
+  const prefillProductId = searchParams.get("product_id");
+
   // Result States
   const [variations, setVariations] = useState<
     { hook: string; isi: string; proof: string; cta: string }[] | null
@@ -69,19 +73,23 @@ export default function ScriptGeneratorClient({
     const p = products[idx];
     if (!p) return;
 
-    setNama(p.jenis || p.nama.substring(0, 40));
+    setNama(p.product_name.substring(0, 40));
     
     const infoParts = [];
-    if (p.brand) infoParts.push(`Brand: ${p.brand}`);
-    if (p.harga) infoParts.push(`Harga Rp${p.harga.toLocaleString("id-ID")}`);
-    if (p.komisi) infoParts.push(`Komisi Rp${p.komisi.toLocaleString("id-ID")}`);
-    if (p.label_prestasi && p.label_prestasi !== "-") {
-      infoParts.push(`Prestasi: ${p.label_prestasi}`);
-    }
+    if (p.shop_name) infoParts.push(`Toko: ${p.shop_name}`);
 
     setDesc(infoParts.join(", "));
-    setSaveProdId(p.id); // Default auto-select saving product
+    setSaveProdId(p.product_id); // Default auto-select saving product
   };
+
+  useEffect(() => {
+    if (prefillProductId && products.length > 0) {
+      const idx = products.findIndex((p) => p.product_id === prefillProductId);
+      if (idx !== -1) {
+        handlePrefillChange(String(idx));
+      }
+    }
+  }, [prefillProductId, products]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,8 +228,8 @@ Ketentuan PENTING:
             >
               <option value="">— Isi Manual —</option>
               {products.map((p, i) => (
-                <option key={p.id} value={i}>
-                  {p.jenis || p.nama.substring(0, 30)}
+                <option key={p.product_id} value={i}>
+                  {p.product_name.substring(0, 30)}
                 </option>
               ))}
             </select>
@@ -290,28 +298,6 @@ Ketentuan PENTING:
           </div>
 
           <div className="h-px bg-border-light my-2" />
-
-          {/* Dropdown: Simpan Ke Master Produk */}
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-text-placeholder uppercase tracking-wider flex items-center gap-1">
-              <span>Simpan Hasil ke Master</span>
-              <span title="Pilih produk untuk menyimpan isi naskah AI terpilih ke daftar deskripsi produk.">
-                <Info className="w-3.5 h-3.5 text-text-placeholder cursor-help" />
-              </span>
-            </label>
-            <select
-              value={saveProdId}
-              onChange={(e) => setSaveProdId(e.target.value)}
-              className="w-full text-xs px-2.5 py-2 bg-bg border border-border-light focus:border-accent rounded-lg focus:outline-none cursor-pointer transition-colors"
-            >
-              <option value="">— Jangan Simpan —</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.jenis || p.nama.substring(0, 30)}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Submit Button */}
           <button

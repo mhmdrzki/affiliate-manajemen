@@ -1,11 +1,11 @@
 "use client";
 
 // /*
-// Tujuan: Komponen tabel interaktif klien-side terpaginasi untuk menampilkan riwayat performa konten dengan pencarian, filter tanggal, link eksternal, dan pemilihan produk.
+// Tujuan: Komponen tabel interaktif klien-side terpaginasi untuk menampilkan riwayat performa konten dengan pencarian, filter tanggal, filter produk, link eksternal, pemilihan produk, penghapusan konten, dan ekspor CSV terfilter.
 // Caller: app/(dashboard)/history/page.tsx
-// Dependensi: types/index.ts, lucide-react, lib/utils/format.ts, components/history/ProductSelector.tsx, next/navigation (useRouter, usePathname, useSearchParams)
+// Dependensi: types/index.ts, lucide-react, lib/utils/format.ts, components/history/ProductSelector.tsx, next/navigation (useRouter, usePathname, useSearchParams), app/actions/contents.ts (deleteContentAction, getAllFilteredContentsAction)
 // Main Functions: ContentHistoryTable
-// Side Effects: None
+// Side Effects: Memanggil deleteContentAction untuk menghapus entri konten, memicu refresh router, dan mengunduh berkas CSV.
 // */
 
 import React, { useState, useEffect } from "react";
@@ -22,10 +22,15 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  ArrowUpDown,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Content, Product } from "@/types";
 import { fmt } from "@/lib/utils/format";
 import ProductSelector from "./ProductSelector";
+import { deleteContentAction, getAllFilteredContentsAction } from "@/app/actions/contents";
 
 interface ContentHistoryTableProps {
   contents: Content[];
@@ -37,6 +42,8 @@ interface ContentHistoryTableProps {
   search: string;
   startDate: string;
   endDate: string;
+  productId: string;
+  sortBy: string;
 }
 
 export default function ContentHistoryTable({
@@ -49,6 +56,8 @@ export default function ContentHistoryTable({
   search,
   startDate,
   endDate,
+  productId,
+  sortBy,
 }: ContentHistoryTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -58,6 +67,101 @@ export default function ContentHistoryTable({
   const [localSearch, setLocalSearch] = useState(search);
   const [localStartDate, setLocalStartDate] = useState(startDate);
   const [localEndDate, setLocalEndDate] = useState(endDate);
+  const [localProductId, setLocalProductId] = useState(productId);
+  const [localSortBy, setLocalSortBy] = useState(sortBy);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const res = await getAllFilteredContentsAction({
+        search,
+        startDate,
+        endDate,
+        productId,
+      });
+
+      if (!res.success || !res.data) {
+        alert(res.message || "Gagal mengambil data konten untuk ekspor.");
+        return;
+      }
+
+      const headers = [
+        "ID Konten",
+        "TikTok Content ID",
+        "Tanggal Upload",
+        "Tipe Konten",
+        "Deskripsi",
+        "Views",
+        "Likes",
+        "Comments",
+        "Shares",
+        "CTR (%)",
+        "CTOR (%)",
+        "Items Sold",
+        "Link Video",
+        "ID Produk",
+        "Nama Produk"
+      ];
+
+      const keys = [
+        "id",
+        "tiktok_content_id",
+        "tanggal_upload",
+        "content_type",
+        "desc_text",
+        "views",
+        "likes",
+        "comments",
+        "shares",
+        "ctr",
+        "ctor",
+        "items_sold",
+        "link_video",
+        "product_id",
+        "product_name"
+      ];
+
+      const productMap = new Map(products.map(p => [p.product_id, p.product_name]));
+
+      const exportData = res.data.map(c => ({
+        ...c,
+        product_name: c.product_id ? (productMap.get(c.product_id) || "") : ""
+      }));
+
+      const csvContent = [
+        headers.join(","),
+        ...exportData.map((item) =>
+          keys.map((key) => {
+            let val = item[key as keyof typeof item];
+            if (val === null || val === undefined) {
+              val = "";
+            }
+            val = String(val);
+            if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes(";")) {
+              val = `"${val.replace(/"/g, '""')}"`;
+            }
+            return val;
+          }).join(",")
+        )
+      ].join("\n");
+
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `riwayat_konten_${new Date().toISOString().split("T")[0]}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert("Terjadi kesalahan saat mengekspor data.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Sinkronisasi state lokal dengan parameter URL saat terjadi navigasi (back/forward)
   useEffect(() => {
@@ -71,6 +175,14 @@ export default function ContentHistoryTable({
   useEffect(() => {
     setLocalEndDate(endDate);
   }, [endDate]);
+
+  useEffect(() => {
+    setLocalProductId(productId);
+  }, [productId]);
+
+  useEffect(() => {
+    setLocalSortBy(sortBy);
+  }, [sortBy]);
 
   // Handler mengubah parameter filter URL
   const handleFilterChange = (params: Record<string, string | null>) => {
@@ -100,7 +212,29 @@ export default function ContentHistoryTable({
     setLocalSearch("");
     setLocalStartDate("");
     setLocalEndDate("");
+    setLocalProductId("");
+    setLocalSortBy("");
     router.push(pathname);
+  };
+
+  const handleDeleteClick = async (contentId: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus konten ini dari riwayat secara permanen?")) {
+      return;
+    }
+
+    setDeletingId(contentId);
+    try {
+      const res = await deleteContentAction(contentId);
+      if (res.success) {
+        alert(res.message);
+      } else {
+        alert(res.message);
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan saat menghapus konten.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -108,11 +242,24 @@ export default function ContentHistoryTable({
       {/* Header and Filters Section */}
       <div className="p-5 border-b border-border flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Film className="w-5 h-5 text-accent" />
             <h3 className="font-extrabold text-sm text-text-main">
               Daftar Konten Terdeteksi ({totalRows})
             </h3>
+            <button
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="flex items-center gap-1.5 bg-white hover:bg-bg-panel text-text-muted border border-border-light hover:border-border-active text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm disabled:opacity-50"
+              title="Ekspor data riwayat konten saat ini berdasarkan filter yang aktif"
+            >
+              {exporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-text-placeholder" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-text-placeholder" />
+              )}
+              <span>Ekspor CSV</span>
+            </button>
           </div>
 
           {/* Search Form */}
@@ -148,7 +295,7 @@ export default function ContentHistoryTable({
           </form>
         </div>
 
-        {/* Date Filter Row */}
+        {/* Date & Product Filter Row */}
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2 bg-bg border border-border rounded-lg px-2.5 py-1.5">
             <Calendar className="w-3.5 h-3.5 text-text-placeholder" />
@@ -176,8 +323,49 @@ export default function ContentHistoryTable({
             />
           </div>
 
+          {/* Product Filter */}
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-lg px-2.5 py-1.5">
+            <span className="text-[10px] font-bold text-text-placeholder uppercase tracking-wider">
+              Produk:
+            </span>
+            <select
+              value={localProductId}
+              onChange={(e) => {
+                setLocalProductId(e.target.value);
+                handleFilterChange({ productId: e.target.value });
+              }}
+              className="bg-transparent text-xs text-text-main font-bold outline-none border-none p-0 cursor-pointer focus:ring-0 max-w-[200px] truncate"
+            >
+              <option value="" className="bg-card text-text-main">Semua Produk</option>
+              {products.map((p) => (
+                <option key={p.product_id} value={p.product_id} className="bg-card text-text-main">
+                  {p.product_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort By Filter */}
+          <div className="flex items-center gap-2 bg-bg border border-border rounded-lg px-2.5 py-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-text-placeholder" />
+            <span className="text-[10px] font-bold text-text-placeholder uppercase tracking-wider">
+              Urutkan:
+            </span>
+            <select
+              value={localSortBy}
+              onChange={(e) => {
+                setLocalSortBy(e.target.value);
+                handleFilterChange({ sortBy: e.target.value });
+              }}
+              className="bg-transparent text-xs text-text-main font-bold outline-none border-none p-0 cursor-pointer focus:ring-0"
+            >
+              <option value="" className="bg-card text-text-main">Terbaru</option>
+              <option value="no_product_first" className="bg-card text-text-main">Belum Dikaitkan Produk</option>
+            </select>
+          </div>
+
           {/* Clear Filters Button */}
-          {(search || startDate || endDate) && (
+          {(search || startDate || endDate || productId || sortBy) && (
             <button
               onClick={handleClearFilters}
               className="inline-flex items-center gap-1.5 text-[10px] font-bold text-danger hover:text-danger-hover border border-danger-border bg-danger-bg hover:bg-danger-bg/80 rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer"
@@ -280,18 +468,29 @@ export default function ContentHistoryTable({
 
                   {/* Actions */}
                   <td className="py-3.5 px-4 text-center">
-                    {c.link_video ? (
-                      <a
-                        href={c.link_video}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] font-bold text-accent hover:underline"
+                    <div className="flex items-center justify-center gap-3">
+                      {c.link_video ? (
+                        <a
+                          href={c.link_video}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-accent hover:underline"
+                        >
+                          Tonton <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-text-placeholder italic">Tidak ada link</span>
+                      )}
+                      <button
+                        onClick={() => handleDeleteClick(c.id)}
+                        disabled={deletingId === c.id}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-danger hover:text-danger-hover transition-colors disabled:opacity-50 cursor-pointer"
+                        title="Hapus Konten"
                       >
-                        Tonton <ExternalLink className="w-3 h-3" />
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-text-placeholder italic">Tidak ada link</span>
-                    )}
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingId === c.id ? "Hapus..." : "Hapus"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -352,7 +551,7 @@ export default function ContentHistoryTable({
                   const start = Math.max(2, currentPage - 1);
                   const end = Math.min(totalPages - 1, currentPage + 1);
                   for (let i = start; i <= end; i++) {
-                    if (i !== 1 && i !== totalPages) pages.push(i);
+                     if (i !== 1 && i !== totalPages) pages.push(i);
                   }
                   if (currentPage < totalPages - 2) pages.push("...");
                   pages.push(totalPages);

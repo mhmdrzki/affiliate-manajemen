@@ -16,8 +16,6 @@ import {
   Settings,
   Eye,
   EyeOff,
-  BarChart2,
-  TrendingUp,
   Loader2,
   CheckCircle,
   AlertTriangle,
@@ -33,9 +31,7 @@ export default function SettingsForm({ profile }: SettingsFormProps) {
   const [geminiApiKey, setGeminiApiKey] = useState(
     profile.gemini_api_key_encrypted || ""
   );
-  const [scoringMode, setScoringMode] = useState<"benchmark" | "topsis">(
-    profile.scoring_mode || "benchmark"
-  );
+
 
   const [showApiKey, setShowApiKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +49,6 @@ export default function SettingsForm({ profile }: SettingsFormProps) {
       const res = await updateProfileAction({
         display_name: displayName,
         gemini_api_key_encrypted: geminiApiKey,
-        scoring_mode: scoringMode,
       });
 
       if (res.success) {
@@ -81,7 +76,7 @@ export default function SettingsForm({ profile }: SettingsFormProps) {
               Profil & Parameter Aplikasi
             </h3>
             <p className="text-[10px] text-text-placeholder mt-0.5">
-              Kelola kredensial akun dan preferensi model penilaian prioritas Anda.
+              Kelola kredensial akun Anda.
             </p>
           </div>
         </div>
@@ -146,80 +141,7 @@ export default function SettingsForm({ profile }: SettingsFormProps) {
           </div>
         </div>
 
-        {/* Radio Cards: Mode Skoring */}
-        <div className="space-y-2.5">
-          <label className="block text-[10px] font-bold text-text-placeholder uppercase tracking-wider">
-            Model Penilaian Produk Default
-          </label>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Card Benchmark */}
-            <div
-              onClick={() => setScoringMode("benchmark")}
-              className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 select-none flex flex-col justify-between ${
-                scoringMode === "benchmark"
-                  ? "border-accent bg-accent/5 ring-1 ring-accent"
-                  : "border-border-light hover:border-border-active bg-bg/20"
-              }`}
-            >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                    scoringMode === "benchmark" ? "bg-accent/10 text-accent" : "bg-bg-panel text-text-placeholder"
-                  }`}>
-                    <BarChart2 className="w-4 h-4" />
-                  </div>
-                  <span className="font-extrabold text-xs text-text-main">
-                    Benchmark Mode (SAW)
-                  </span>
-                </div>
-                <p className="text-[10px] text-text-placeholder leading-relaxed font-medium">
-                  Ideal untuk akun baru dengan sedikit data penjualan. Peringkat didasarkan pada intensitas upload video, sebaran hari, dan views puncak terhadap target benchmark kompetitor.
-                </p>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  scoringMode === "benchmark" ? "bg-accent text-white" : "bg-bg-panel text-text-placeholder"
-                }`}>
-                  {scoringMode === "benchmark" ? "Aktif" : "Pilih"}
-                </span>
-              </div>
-            </div>
 
-            {/* Card TOPSIS */}
-            <div
-              onClick={() => setScoringMode("topsis")}
-              className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 select-none flex flex-col justify-between ${
-                scoringMode === "topsis"
-                  ? "border-special bg-special/5 ring-1 ring-special"
-                  : "border-border-light hover:border-border-active bg-bg/20"
-              }`}
-            >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                    scoringMode === "topsis" ? "bg-special/10 text-special" : "bg-bg-panel text-text-placeholder"
-                  }`}>
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
-                  <span className="font-extrabold text-xs text-text-main">
-                    TOPSIS Mode (Multi-Criteria)
-                  </span>
-                </div>
-                <p className="text-[10px] text-text-placeholder leading-relaxed font-medium">
-                  Ideal jika minimal 3 produk sudah memiliki riwayat penjualan aktif. Peringkat dihitung secara multi-kriteria berdasarkan konversi pesanan (CTOR), jumlah penjualan, views, dan CTR.
-                </p>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  scoringMode === "topsis" ? "bg-special text-white" : "bg-bg-panel text-text-placeholder"
-                }`}>
-                  {scoringMode === "topsis" ? "Aktif" : "Pilih"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Submit Area */}
         <div className="pt-4 border-t border-border-light flex justify-end">

@@ -1,14 +1,13 @@
-// /*
 // Tujuan: Halaman UI Pengaturan (Server Component) untuk memuat profil pengguna dari SQLite lokal dan merender form pengaturan.
 // Caller: Route /settings
-// Dependensi: lib/db/index.ts, lib/supabase/server.ts, types/index.ts, components/settings/SettingsForm.tsx, components/layout/Topbar.tsx
+// Dependensi: lib/db/index.ts, lib/auth.ts, types/index.ts, components/settings/SettingsForm.tsx, components/layout/Topbar.tsx
 // Main Functions: SettingsPage
 // Side Effects: Mengambil data profil dari database SQLite lokal.
 // */
 
 import React from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -17,12 +16,7 @@ import Topbar from "@/components/layout/Topbar";
 import { Profile } from "@/types";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-
-  // 1. Verifikasi Sesi User
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getMockUser();
 
   if (!user) {
     redirect("/login");
@@ -42,7 +36,6 @@ export default async function SettingsPage() {
       email: user.email || "",
       display_name: user.email || "",
       gemini_api_key_encrypted: null,
-      scoring_mode: "benchmark",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

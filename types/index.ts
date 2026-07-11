@@ -11,61 +11,35 @@ export interface Profile {
   email: string;
   display_name: string | null;
   gemini_api_key_encrypted: string | null;
-  scoring_mode: 'benchmark' | 'topsis';
   created_at: string;
   updated_at: string;
 }
 
 export interface Product {
-  id: string;
+  product_id: string;
   user_id: string;
-  nama: string;
-  brand: string | null;
-  jenis: string | null;
-  harga: number;
-  komisi: number;
-  kategori: string;
-  label_prestasi: string;
-  gmv_aktif: boolean;
-  status: 'aktif' | 'jeda' | 'habis';
-  desc_variants: string[];
-  bench_score: number;
-  topsis_score: number;
-  klasifikasi: 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING';
-  slot_rek: string;
-  score_mode: 'benchmark' | 'topsis';
-  created_at: string;
-  updated_at: string;
-  // TikTok Orders Fields
-  tiktok_product_id: string | null;
+  product_name: string;
   shop_name: string | null;
   shop_code: string | null;
-  avg_commission_rate: number;
+  category: string;
+  stock_status: 'available' | 'out_of_stock' | 'unknown';
+  date_added: string;
+  is_collaboration: boolean;
+  collab_target_count: number | null;
+  collab_deadline: string | null;
+  collab_start_date: string | null;
+  status: 'active' | 'paused' | 'stopped';
+  reset_testing_at: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Dynamically calculated in-memory metrics
+  avg_price: number;
+  commission_rate: number;
   total_revenue: number;
   total_orders: number;
   net_items_sold: number;
-  total_refunded: number;
-  kuota_mingguan: number;
-  aksi_rekomendasi: string;
   shop_ads_ratio: number;
-  regularity_score: number;
-  is_kerjasama: boolean;
-  kerjasama_target: number;
-  kerjasama_deadline: string | null;
-  // OOS Fields
-  last_oos_started_at: string | null;
-  last_oos_ended_at: string | null;
-  pre_oos_classification: 'COLLABORATION' | 'RESTOCK_CONFIRMED' | 'PROVEN_WINNER' | 'GMV_ACTIVE' | 'RESTOCK_RECOVERY' | 'GROWING' | 'EARLY_STAGE' | 'MONITOR' | 'SPIKE_ONLY' | 'STAGNANT' | 'DECLINING' | null;
-  content_made?: number;
-}
-
-export interface StockHistory {
-  id: string;
-  product_id: string;
-  status: 'out_of_stock' | 'available';
-  changed_at: string;
-  changed_by: 'user' | 'system';
-  notes: string | null;
 }
 
 export interface Content {
@@ -74,19 +48,14 @@ export interface Content {
   product_id: string | null;
   desc_text: string | null;
   tanggal_upload: string;
-  durasi: number; // dalam detik
   views: number;
   ctr: number;
   ctor: number;
   items_sold: number;
-  gmv: number;
-  est_komisi: number;
   created_at: string;
   // TikTok Orders Fields
   tiktok_content_id: string | null;
   content_type: string;
-  total_orders: number;
-  total_revenue: number;
   likes: number;
   comments: number;
   shares: number;
@@ -94,27 +63,21 @@ export interface Content {
 }
 
 export interface Order {
-  id: string;
-  user_id: string;
-  tiktok_order_id: string;
-  product_id: string | null;
-  content_id: string | null;
+  order_id: string;
   sku_id: string | null;
+  product_id: string | null;
   product_name: string | null;
-  items_sold: number;
-  items_refunded: number;
-  price: number;
-  gmv: number;
+  contents_id: string | null;
+  shop_code: string | null;
   order_type: 'shop_ads' | 'affiliate';
-  settlement_status: 'Settled' | 'Pending' | 'AwaitingPayment';
-  commission_rate: number;
+  price: number;
+  items_sold: number;
+  gmv: number;
   est_commission: number;
   actual_commission: number;
-  total_final_earned: number;
-  shop_name: string | null;
-  shop_code: string | null;
-  order_date: string;
-  settlement_date: string | null;
+  settlement_status: 'settled' | 'pending' | 'awaiting_payment';
+  ordered_at: string;
+  user_id: string;
   created_at: string;
 }
 
@@ -143,21 +106,23 @@ export interface Template {
 export interface Schedule {
   id: string;
   user_id: string;
+  schedule_date: string;
+  slot_number: number;
+  product_id: string | null;
+  product_name: string;
+  slot_type: 'collaboration' | 'fairness' | 'ranked';
+  pool: 'A' | 'B' | null;
+  score: number | null;
   created_at: string;
-  schedule_data: ScheduleDaySlot[];
 }
 
-export interface ScheduleDaySlot {
-  hari: string; // "Senin", "Selasa", dll
-  slots: {
-    jam: string;
-    tipe: 'PRIME' | 'MID' | 'TEST';
-    productId: string | null;
-    productName: string | null;
-    brand: string | null;
-    kategori: string | null;
-    hook: string | null;
-    proof: string | null;
-    cta: string | null;
-  }[];
+export interface ScoringParam {
+  id: string;
+  user_id: string;
+  param_key: string;
+  param_value: number;
+  updated_at: string;
 }
+
+
+

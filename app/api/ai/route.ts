@@ -1,25 +1,20 @@
 // /*
 // Tujuan: Route Handler API (Server-Side Proxy) aman untuk memanggil Google Gemini API menggunakan API key yang tersimpan di environment server atau profil pengguna di SQLite lokal.
 // Caller: Komponen Script Generator (/scripts), Detail Produk (/products/[id])
-// Dependensi: next/server, lib/db/index.ts, lib/supabase/server.ts, GEMINI_API_KEY
+// Dependensi: next/server, lib/db/index.ts, lib/auth.ts, GEMINI_API_KEY
 // Main Functions: POST
 // Side Effects: Melakukan fetch request HTTP keluar ke Google Gemini API.
 // */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // 1. Verifikasi sesi user secara server-side
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getMockUser();
 
     if (!user) {
       return NextResponse.json(
@@ -44,7 +39,7 @@ export async function POST(request: NextRequest) {
       .where(eq(profiles.id, user.id))
       .then(rows => rows[0]);
 
-    let apiKey = profile?.gemini_api_key_encrypted || process.env.GEMINI_API_KEY;
+    const apiKey = profile?.gemini_api_key_encrypted || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(

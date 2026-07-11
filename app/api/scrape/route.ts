@@ -1,14 +1,14 @@
 // /*
 // Tujuan: API Route Handler untuk memicu scraper TikTok via python subprocess, dan menyimpan metrik interaksi (engagement) ke SQLite lokal.
 // Caller: Komponen Scheduler / Dashboard UI
-// Dependensi: child_process (exec), lib/db/index.ts, lib/supabase/server.ts, tiktok_affiliate_scraper_v2.py
+// Dependensi: child_process (exec), lib/db/index.ts, lib/auth.ts, tiktok_affiliate_scraper_v2.py
 // Main Functions: POST
 // Side Effects: Menjalankan skrip Python di system server, memperbarui data tabel `contents` di SQLite lokal.
 // */
 
 import { NextRequest, NextResponse } from "next/server";
 import { exec } from "child_process";
-import { createClient } from "@/lib/supabase/server";
+import { getMockUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -17,12 +17,7 @@ import path from "path";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // 1. Verifikasi Auth
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getMockUser();
 
     if (!user) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
@@ -87,7 +82,6 @@ export async function POST(req: NextRequest) {
                 .update(contents)
                 .set({
                   desc_text: vid["Deskripsi"],
-                  durasi: parseInt(vid["Durasi (detik)"]) || 0,
                   views: parseInt(vid["Views"]) || 0,
                   likes: parseInt(vid["Likes"]) || 0,
                   comments: parseInt(vid["Komentar"]) || 0,
@@ -105,7 +99,6 @@ export async function POST(req: NextRequest) {
                 tiktok_content_id: tiktokContentId,
                 content_type: "Video",
                 desc_text: vid["Deskripsi"],
-                durasi: parseInt(vid["Durasi (detik)"]) || 0,
                 views: parseInt(vid["Views"]) || 0,
                 likes: parseInt(vid["Likes"]) || 0,
                 comments: parseInt(vid["Komentar"]) || 0,

@@ -1,5 +1,5 @@
 // /*
-// Tujuan: Komponen Client untuk mengunggah file spreadsheet orders (XLSX/CSV) dan menampilkan preview sebelum diimpor.
+// Tujuan: Komponen Client untuk mengunggah file spreadsheet orders (XLSX/CSV) dengan parser CSV yang disempurnakan (BOM, delimiter, multi-line) dan menampilkan preview sebelum diimpor.
 // Caller: app/(dashboard)/import/page.tsx
 // Dependensi: app/actions/import-orders.ts, xlsx, lucide-react, next/navigation (useRouter)
 // Main Functions: ImportUploader
@@ -163,26 +163,72 @@ export default function ImportUploader({ onSuccessAction }: ImportUploaderProps)
     }
   };
 
-  // Helper parser CSV
+  // Helper parser CSV yang disempurnakan (menangani BOM, mendeteksi delimiter otomatis, dan multi-line)
   const parseCSV = (text: string) => {
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (!lines.length) return [];
-    const headers = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
-    return lines.slice(1).map((line) => {
-      const vals: string[] = [];
-      let cur = "";
-      let inQ = false;
-      for (const ch of line) {
-        if (ch === '"') {
-          inQ = !inQ;
-        } else if (ch === "," && !inQ) {
-          vals.push(cur.trim());
-          cur = "";
-        } else cur += ch;
+    let cleanText = text;
+    if (cleanText.charCodeAt(0) === 0xFEFF) {
+      cleanText = cleanText.substring(1);
+    }
+
+    const linesForDetection = cleanText.split("\n").filter((l) => l.trim());
+    if (!linesForDetection.length) return [];
+    
+    // Auto-detect delimiter: comma atau semicolon
+    const firstLine = linesForDetection[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semiCount = (firstLine.match(/;/g) || []).length;
+    const delimiter = semiCount > commaCount ? ";" : ",";
+
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = "";
+    let insideQuotes = false;
+
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      const nextChar = cleanText[i + 1];
+
+      if (char === '"') {
+        if (insideQuotes && nextChar === '"') {
+          // Escaped quote
+          currentField += '"';
+          i++; // skip next quote
+        } else {
+          // Toggle quote state
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === delimiter && !insideQuotes) {
+        currentRow.push(currentField.trim());
+        currentField = "";
+      } else if ((char === "\n" || char === "\r") && !insideQuotes) {
+        if (char === "\r" && nextChar === "\n") {
+          i++; // Skip \n after \r
+        }
+        currentRow.push(currentField.trim());
+        if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0] !== "")) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = "";
+      } else {
+        currentField += char;
       }
-      vals.push(cur.trim());
+    }
+    
+    // Masukkan sisa field dan baris jika masih ada
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField.trim());
+      rows.push(currentRow);
+    }
+
+    if (rows.length === 0) return [];
+    
+    const headers = rows[0].map((h) => h.replace(/^"|"$/g, "").trim());
+    return rows.slice(1).map((lineVals) => {
       const row: Record<string, string> = {};
-      headers.forEach((h, i) => (row[h] = (vals[i] || "").replace(/^"|"$/g, "").trim()));
+      headers.forEach((h, i) => {
+        row[h] = (lineVals[i] || "").replace(/^"|"$/g, "").trim();
+      });
       return row;
     });
   };

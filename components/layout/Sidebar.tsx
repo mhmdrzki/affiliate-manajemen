@@ -13,13 +13,13 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingBag,
-  Calendar,
   FileText,
   Sparkles,
   Upload,
   Database,
   Settings,
   Video,
+  CalendarDays,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -31,16 +31,15 @@ export default function Sidebar({ userEmail }: SidebarProps) {
   const router = useRouter();
 
   const menuItems = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Master Produk", href: "/products", icon: ShoppingBag },
     { name: "Riwayat Konten", href: "/history", icon: Video },
-    { name: "Jadwal Konten", href: "/schedule", icon: Calendar },
+    { name: "Jadwal Konten", href: "/schedule", icon: CalendarDays },
     { name: "AI Script Generator", href: "/scripts", icon: Sparkles },
     { name: "Bank Template", href: "/templates", icon: FileText },
     { name: "Impor Data", href: "/import", icon: Upload },
-    { name: "Migrasi Data", href: "/migrate", icon: Database },
     { name: "Pengaturan", href: "/settings", icon: Settings },
   ];
+
 
   return (
     <aside className="w-64 bg-sb-bg border-r border-sb-border flex flex-col fixed inset-y-0 left-0 z-50 text-sb-text select-none">
