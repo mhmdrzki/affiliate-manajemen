@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok Shop Product ID Extractor</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #111;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 28px 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .header-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #010101;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-icon svg { display: block; }
+    .header-title { font-size: 16px; font-weight: 600; color: #111; }
+    .header-sub   { font-size: 13px; color: #666; margin-top: 2px; }
+
+    /* Info box */
+    .info-box {
+      background: #f9f9f9;
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+    .info-box p { font-size: 13px; color: #555; margin-bottom: 5px; }
+    .info-box p:last-child { margin-bottom: 0; }
+    .info-box strong { color: #111; }
+
+    /* Textarea */
+    label.input-label {
+      display: block;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+    textarea {
+      width: 100%;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: #fff;
+      color: #111;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 12px;
+    }
+    textarea:focus { border-color: #aaa; }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    button {
+      cursor: pointer;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-primary {
+      flex: 1;
+      padding: 10px 16px;
+      font-weight: 500;
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+    .btn-primary:hover { background: #333; border-color: #333; }
+    .btn-ghost {
+      padding: 10px 14px;
+      background: #fff;
+      color: #666;
+    }
+    .btn-ghost:hover { background: #f5f5f5; }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: #fff;
+      color: #333;
+    }
+    .btn-sm:hover { background: #f5f5f5; }
+
+    /* Status */
+    .status {
+      display: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      border: 1px solid transparent;
+    }
+    .status.success { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+    .status.warning { background: #fffbeb; color: #854d0e; border-color: #fde68a; }
+    .status.info    { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+
+    /* Result area */
+    .result-area { display: none; }
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .result-count { font-size: 13px; color: #666; }
+    .copy-btns { display: flex; gap: 8px; }
+
+    /* Table */
+    .table-wrap {
+      border: 1px solid #e5e5e5;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .table-scroll { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 480px;
+    }
+    thead tr { background: #f9f9f9; }
+    th {
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    td { padding: 10px 12px; }
+    tr + tr td { border-top: 1px solid #f0f0f0; }
+
+    .product-id {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #111;
+    }
+    .product-name { font-size: 12px; line-height: 1.4; color: #111; }
+    .muted { color: #999; font-style: italic; font-size: 12px; }
+    .text-danger { color: #dc2626; font-size: 11px; }
+    .text-muted  { color: #999; font-size: 11px; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 500;
+    }
+    .badge-success { background: #f0fdf4; color: #166534; }
+    .badge-warning { background: #fffbeb; color: #854d0e; }
+    .badge-danger  { background: #fef2f2; color: #dc2626; }
+
+    /* Footer tip */
+    .tip {
+      margin-top: 14px;
+      padding: 10px 14px;
+      background: #f9f9f9;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    /* Toast */
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111;
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      z-index: 999;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    @media (max-width: 500px) {
+      .container { padding: 20px 16px 24px; }
+      .result-header { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="header-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5
+          2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01
+          a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34
+          6.34 6.34 0 0 0 6.33-6.34V8.69a8.27 8.27 0 0 0 4.83 1.55V6.79a4.85 4.85 0 0 1-1.06-.1z"
+          fill="white"/>
+      </svg>
+    </div>
+    <div>
+      <div class="header-title">TikTok Shop Product ID Extractor</div>
+      <div class="header-sub">Otomatis ekstrak Product ID + Nama Produk dari link affiliate</div>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <p><strong>Cara pakai:</strong></p>
+    <p>📱 Di HP: buka produk TikTok Shop → tap <strong>Share → Salin link</strong></p>
+    <p>🌐 Buka link pendek di browser → salin URL panjang dari address bar</p>
+    <p>📋 Paste semua URL panjang di bawah (satu per baris) → klik Ekstrak</p>
+  </div>
+
+  <label class="input-label">Paste URL produk di sini (satu per baris):</label>
+  <textarea id="linkInput" rows="8"
+    placeholder="https://shop-id.tokopedia.com/view/product/1730353572051453257?og_info=...
+https://shop-id.tokopedia.com/view/product/9876543210987654321?og_info=...
+https://www.tiktok.com/view/product/1234567890123456789"></textarea>
+
+  <div class="btn-row">
+    <button class="btn-primary" onclick="extractIDs()">
+      🔍 Ekstrak Product ID + Nama Produk
+    </button>
+    <button class="btn-ghost" onclick="clearAll()" title="Bersihkan">
+      🗑
+    </button>
+  </div>
+
+  <div id="statusArea" class="status"></div>
+
+  <div id="resultArea" class="result-area">
+    <div class="result-header">
+      <span class="result-count" id="resultCount"></span>
+      <div class="copy-btns">
+        <button class="btn-sm" onclick="copyExcel()">📋 Copy untuk Excel</button>
+        <button class="btn-sm" onclick="copyCSV()">📄 Copy CSV</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px;">#</th>
+              <th style="width:170px;">Product ID</th>
+              <th>Nama Produk</th>
+              <th style="width:50px;text-align:center;">ID</th>
+              <th style="width:60px;text-align:center;">Nama</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip">
+      💡 Klik <strong>Copy untuk Excel</strong> → paste di Excel/Google Sheets → jadikan master produk,
+      lalu VLOOKUP ke data penjualan affiliate.
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  let extractedData = [];
+
+  function extractProductID(url) {
+    const patterns = [
+      /tokopedia\.com\/view\/product\/(\d+)/i,
+      /shop-id\.tokopedia\.com\/view\/product\/(\d+)/i,
+      /tiktok\.com\/view\/product\/(\d+)/i,
+      /tiktok\.com\/product\/(\d+)/i,
+      /item_id=(\d+)/i,
+      /product_id=(\d+)/i,
+      /\/product\/(\d{10,})/i,
+      /\/(\d{15,})(?:[?&/]|$)/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  }
+
+  function decodeProductName(raw) {
+    try {
+      return decodeURIComponent(raw.replace(/\+/g, ' '));
+    } catch(e) {
+      return raw.replace(/\+/g, ' ');
+    }
+  }
+
+  function extractProductName(url) {
+    // Cara 1: regex langsung dari URL string (hindari double-decode)
+    try {
+      const ogMatch = url.match(/[?&]og_info=([^&]*)/);
+      if (ogMatch) {
+        const decoded = decodeProductName(ogMatch[1]);
+        const parsed = JSON.parse(decoded);
+        if (parsed.title) return parsed.title;
+      }
+    } catch(e) {}
+
+    // Cara 2: via URL API
+    try {
+      const u = new URL(url);
+      const ogRaw = u.searchParams.get('og_info');
+      if (ogRaw) {
+        const fixed = ogRaw.replace(/\+/g, ' ');
+        const parsed = JSON.parse(fixed);
+        if (parsed.title) return parsed.title;
+      }
+    } catch(e) {}
+
+    // Fallback: title / name param
+    try {
+      const titleMatch = url.match(/[?&]title=([^&]+)/i);
+      if (titleMatch) return decodeProductName(titleMatch[1]);
+      const nameMatch = url.match(/[?&]name=([^&]+)/i);
+      if (nameMatch) return decodeProductName(nameMatch[1]);
+    } catch(e) {}
+
+    return null;
+  }
+
+  function isShortLink(url) {
+    return /vt\.tiktok\.com|vm\.tiktok\.com|vt\.tokopedia\.com|shp\.ee/.test(url);
+  }
+
+  function showStatus(msg, type) {
+    const el = document.getElementById('statusArea');
+    el.className = 'status ' + type;
+    el.style.display = 'block';
+    el.innerHTML = msg;
+  }
+
+  function badge(text, type) {
+    return `<span class="badge badge-${type}">${text}</span>`;
+  }
+
+  function extractIDs() {
+    const input = document.getElementById('linkInput').value;
+    const lines = input.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    if (lines.length === 0) {
+      showStatus('⚠️ Belum ada link yang dimasukkan.', 'warning');
+      return;
+    }
+
+    extractedData = [];
+    let countID = 0, countName = 0, countShort = 0, countFail = 0;
+    const tbody = document.getElementById('resultBody');
+    tbody.innerHTML = '';
+
+    lines.forEach((url, i) => {
+      const id    = extractProductID(url);
+      const name  = id ? extractProductName(url) : null;
+      const short = !id && isShortLink(url);
+
+      if (id)    countID++;
+      if (name)  countName++;
+      if (short) countShort++;
+      if (!id && !short) countFail++;
+
+      extractedData.push({ url, id: id || '', name: name || '' });
+
+      const idCell = id
+        ? `<span class="product-id">${id}</span>`
+        : short
+        ? `<span class="text-muted">Link pendek</span>`
+        : `<span class="text-danger">Tidak ditemukan</span>`;
+
+      const nameCell = name
+        ? `<span class="product-name">${name}</span>`
+        : `<span class="muted">—</span>`;
+
+      const idBadge   = id   ? badge('✓','success') : badge('✗','danger');
+      const nameBadge = name ? badge('✓','success') : (id ? badge('—','warning') : badge('✗','danger'));
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:#999;">${i+1}</td>
+        <td>${idCell}</td>
+        <td>${nameCell}</td>
+        <td style="text-align:center;">${idBadge}</td>
+        <td style="text-align:center;">${nameBadge}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('resultArea').style.display = 'block';
+    document.getElementById('resultCount').textContent =
+      `${lines.length} link · ${countID} Product ID · ${countName} nama produk · ${countShort} link pendek · ${countFail} gagal`;
+
+    if (countShort > 0 && countID === 0) {
+      showStatus(
+        `⚠️ <strong>${countShort} link pendek</strong> terdeteksi. Buka di browser → salin URL panjang dari address bar → paste ulang di sini.`,
+        'warning'
+      );
+    } else if (countID === lines.length && countName === lines.length) {
+      showStatus(`✅ Semua ${countID} Product ID dan nama produk berhasil diekstrak!`, 'success');
+    } else if (countID > 0) {
+      const msgs = [];
+      if (countName < countID) msgs.push(`${countID - countName} nama tidak ditemukan di URL (isi manual)`);
+      if (countShort > 0) msgs.push(`${countShort} link pendek perlu dibuka di browser dulu`);
+      if (countFail > 0) msgs.push(`${countFail} link tidak dikenali`);
+      showStatus(`ℹ️ ${countID} Product ID ditemukan. ${msgs.join('. ')}.`, 'info');
+    } else {
+      showStatus('⚠️ Tidak ada Product ID yang ditemukan. Pastikan kamu paste URL panjang (bukan link pendek).', 'warning');
+    }
+  }
+
+  function copyExcel() {
+    const header = 'No\tProduct ID\tNama Produk\n';
+    const rows = extractedData.map((d,i) => `${i+1}\t${d.id}\t${d.name}`).join('\n');
+    navigator.clipboard.writeText(header + rows).then(() => showToast('Tersalin! Paste langsung ke Excel / Google Sheets.'));
+  }
+
+  function copyCSV() {
+    const header = 'No,Product ID,Nama Produk\n';
+    const rows = extractedData.map((d,i) => `${i+1},"${d.id}","${d.name.replace(/"/g,'""')}"`).join('\n');
+    navigator.clipboard.writeText(header + rows).then(() => showToast('CSV tersalin!'));
+  }
+
+  function clearAll() {
+    document.getElementById('linkInput').value = '';
+    document.getElementById('resultArea').style.display = 'none';
+    document.getElementById('statusArea').style.display = 'none';
+    extractedData = [];
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 2500);
+  }
+</script>
+
+</body>
+</html>

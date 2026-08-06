@@ -1,8 +1,8 @@
 // /*
-// Tujuan: Server Actions untuk CRUD master produk (create, read, update, delete) + otomatisasi transisi stock status.
+// Tujuan: Server Actions untuk CRUD master produk (create, read, update, delete) + otomatisasi transisi stock status + update massal (bulk).
 // Caller: Komponen Halaman Master Produk (/products) dan AI Script Generator (/scripts)
 // Dependensi: lib/db/index.ts, lib/db/schema.ts, lib/auth.ts, next/cache (revalidatePath)
-// Main Functions: createProductAction, updateProductAction, updateProductStatusAction, updateProductStockStatusAction, deleteProductAction, deleteProductsBulkAction, saveProductDescVariantAction
+// Main Functions: createProductAction, updateProductAction, updateProductStatusAction, updateProductStockStatusAction, updateProductsBulkAction, deleteProductAction, deleteProductsBulkAction, saveProductDescVariantAction, resetProductTestingAction
 // Side Effects: Menulis, memperbarui, dan menghapus data produk di SQLite lokal.
 // */
 
@@ -386,6 +386,85 @@ export async function resetProductTestingAction(productId: string): Promise<Acti
     return {
       success: false,
       message: err.message || "Gagal mereset testing produk.",
+    };
+  }
+}
+
+/**
+ * Memperbarui status/stok/kerjasama/kategori beberapa produk secara massal
+ */
+export async function updateProductsBulkAction(
+  productIds: string[],
+  updates: {
+    status?: "active" | "paused" | "stopped";
+    stock_status?: "available" | "out_of_stock" | "unknown";
+    is_collaboration?: boolean;
+    collab_target_count?: number | null;
+    collab_deadline?: string | null;
+    collab_start_date?: string | null;
+    category?: string;
+  }
+): Promise<ActionResponse> {
+  const user = await getMockUser();
+
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+
+  if (!productIds || productIds.length === 0) {
+    return { success: false, message: "Tidak ada produk yang dipilih." };
+  }
+
+  try {
+    const updateFields: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.status !== undefined) {
+      updateFields.status = updates.status;
+    }
+    if (updates.stock_status !== undefined) {
+      updateFields.stock_status = updates.stock_status;
+    }
+    if (updates.is_collaboration !== undefined) {
+      updateFields.is_collaboration = updates.is_collaboration;
+      if (updates.is_collaboration) {
+        if (updates.collab_target_count !== undefined) {
+          updateFields.collab_target_count = updates.collab_target_count;
+        }
+        if (updates.collab_deadline !== undefined) {
+          updateFields.collab_deadline = updates.collab_deadline;
+        }
+        if (updates.collab_start_date !== undefined) {
+          updateFields.collab_start_date = updates.collab_start_date;
+        }
+      } else {
+        updateFields.collab_target_count = null;
+        updateFields.collab_deadline = null;
+        updateFields.collab_start_date = null;
+      }
+    }
+    if (updates.category !== undefined) {
+      updateFields.category = updates.category.trim() || "Umum";
+    }
+
+    await db
+      .update(products)
+      .set(updateFields)
+      .where(and(inArray(products.product_id, productIds), eq(products.user_id, user.id)));
+
+    // Revalidate paths
+    revalidatePath("/products");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: `${productIds.length} produk berhasil diperbarui secara massal.`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal memperbarui produk secara massal.",
     };
   }
 }

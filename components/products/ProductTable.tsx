@@ -1,21 +1,23 @@
 // /*
-// Tujuan: Komponen Client berupa tabel master produk interaktif dengan seleksi checkbox, tampilan metrik, pemilih status stok, status kerjasama, dan ekspor CSV.
+// Tujuan: Komponen Client berupa tabel master produk interaktif dengan seleksi checkbox, pencarian real-time klien, edit massal (bulk), tampilan metrik, pemilih status stok, status kerjasama, ekspor CSV, dan impor CSV/Excel.
 // Caller: app/(dashboard)/products/page.tsx
-// Dependensi: app/actions/products.ts, types/index.ts, components/products/StatusSelector.tsx, components/products/StockStatusSelector.tsx, components/products/AddProductDialog.tsx, components/products/EditProductDialog.tsx, lucide-react, next/navigation (useRouter)
+// Dependensi: app/actions/products.ts, types/index.ts, components/products/StatusSelector.tsx, components/products/StockStatusSelector.tsx, components/products/AddProductDialog.tsx, components/products/EditProductDialog.tsx, components/products/ImportProductDialog.tsx, components/products/BulkEditProductDialog.tsx, lucide-react, next/navigation (useRouter)
 // Main Functions: ProductTable
-// Side Effects: Memanggil deleteProductsBulkAction server action.
+// Side Effects: Memanggil deleteProductsBulkAction server action dan updateProductsBulkAction server action.
 // */
 
 "use client";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingBag, Trash2, AlertTriangle, Loader2, X, Info, Download, RotateCcw } from "lucide-react";
+import { ShoppingBag, Trash2, AlertTriangle, Loader2, X, Info, Download, RotateCcw, Search } from "lucide-react";
 import { Product } from "@/types";
 import StatusSelector from "./StatusSelector";
 import StockStatusSelector from "./StockStatusSelector";
 import AddProductDialog from "./AddProductDialog";
 import EditProductDialog from "./EditProductDialog";
+import ImportProductDialog from "./ImportProductDialog";
+import BulkEditProductDialog from "./BulkEditProductDialog";
 import { deleteProductsBulkAction, resetProductTestingAction } from "@/app/actions/products";
 
 interface ProductTableProps {
@@ -55,13 +57,28 @@ export default function ProductTable({ products }: ProductTableProps) {
     }
   };
 
-  const isAllSelected = products.length > 0 && selectedIds.length === products.length;
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredProducts = products.filter((p) => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      p.product_name.toLowerCase().includes(query) ||
+      (p.shop_name && p.shop_name.toLowerCase().includes(query)) ||
+      (p.category && p.category.toLowerCase().includes(query)) ||
+      p.product_id.toLowerCase().includes(query)
+    );
+  });
+
+  const isAllSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.includes(p.product_id));
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
-      setSelectedIds([]);
+      const filteredIds = filteredProducts.map((p) => p.product_id);
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
     } else {
-      setSelectedIds(products.map((p) => p.product_id));
+      const filteredIds = filteredProducts.map((p) => p.product_id);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
     }
   };
 
@@ -165,16 +182,22 @@ export default function ProductTable({ products }: ProductTableProps) {
             <span>Daftar Master Produk ({products.length})</span>
           </h3>
           {selectedIds.length > 0 && (
-            <button
-              onClick={() => {
-                setError(null);
-                setShowConfirmModal(true);
-              }}
-              className="flex items-center gap-1.5 bg-danger hover:bg-danger/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-[0_2px_6px_rgba(239,68,68,0.15)] animate-in fade-in duration-200"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Hapus {selectedIds.length} Terpilih</span>
-            </button>
+            <div className="flex items-center gap-2 animate-in fade-in duration-200">
+              <BulkEditProductDialog
+                selectedIds={selectedIds}
+                onSuccess={() => setSelectedIds([])}
+              />
+              <button
+                onClick={() => {
+                  setError(null);
+                  setShowConfirmModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-danger hover:bg-danger/90 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-[0_2px_6px_rgba(239,68,68,0.15)]"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus {selectedIds.length} Terpilih</span>
+              </button>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -185,8 +208,30 @@ export default function ProductTable({ products }: ProductTableProps) {
             <Download className="w-3.5 h-3.5 text-text-placeholder" />
             <span>Ekspor CSV</span>
           </button>
+          <ImportProductDialog />
           <AddProductDialog />
         </div>
+      </div>
+
+      {/* Input Pencarian */}
+      <div className="mb-4 flex items-center max-w-sm relative">
+        <input
+          type="text"
+          placeholder="Cari nama produk, toko, kategori, atau ID..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full text-xs pl-8 pr-8 py-2 border border-border-light focus:border-accent rounded-lg bg-bg outline-none text-text-main font-semibold"
+        />
+        <Search className="w-4 h-4 text-text-placeholder absolute left-2.5" />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2.5 text-text-placeholder hover:text-text-muted transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto border border-border-light rounded-lg">
@@ -211,8 +256,8 @@ export default function ProductTable({ products }: ProductTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-light">
-            {products.length > 0 ? (
-              products.map((p) => {
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map((p) => {
 
 
                 const isSelected = selectedIds.includes(p.product_id);
@@ -274,7 +319,9 @@ export default function ProductTable({ products }: ProductTableProps) {
             ) : (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-text-placeholder">
-                  Belum ada data produk. Silakan tambah produk baru secara manual di atas atau melalui menu **Impor Data**.
+                  {searchQuery
+                    ? "Tidak ditemukan produk yang cocok dengan pencarian."
+                    : "Belum ada data produk. Silakan tambah produk baru secara manual di atas atau melalui menu Impor Data."}
                 </td>
               </tr>
             )}

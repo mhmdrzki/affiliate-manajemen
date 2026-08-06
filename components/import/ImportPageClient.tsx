@@ -1,7 +1,7 @@
 // /*
-// Tujuan: Komponen klien-side untuk mengkoordinasikan tabel data pesanan, log riwayat impor, dan dialog modal uploader.
+// Tujuan: Komponen klien-side untuk mengkoordinasikan tabel data pesanan, log riwayat impor, panel ranking produk, dan dialog modal uploader.
 // Caller: app/(dashboard)/import/page.tsx
-// Dependensi: components/import/SalesDataTable.tsx, components/import/ImportLogsTable.tsx, components/import/ImportModal.tsx, components/layout/Topbar.tsx
+// Dependensi: components/import/SalesDataTable.tsx, components/import/ImportLogsTable.tsx, components/import/ImportModal.tsx, components/import/ProductRankingPanel.tsx, components/layout/Topbar.tsx
 // Main Functions: ImportPageClient
 // Side Effects: None
 // */
@@ -13,6 +13,7 @@ import Topbar from "@/components/layout/Topbar";
 import ImportLogsTable from "./ImportLogsTable";
 import SalesDataTable from "./SalesDataTable";
 import ImportModal from "./ImportModal";
+import ProductRankingPanel from "./ProductRankingPanel";
 
 interface Product {
   product_id: string;
@@ -86,6 +87,9 @@ export default function ImportPageClient({
           logs={logs} 
           onOpenImportModal={() => setIsModalOpen(true)} 
         />
+
+        {/* Ranking Produk */}
+        <ProductRankingPanel />
 
         {/* Tabel Data Penjualan (sales_data) */}
         <SalesDataTable

@@ -1,7 +1,7 @@
 "use client";
 
 // /*
-// Tujuan: Komponen tabel interaktif klien-side terpaginasi untuk menampilkan riwayat performa konten dengan pencarian, filter tanggal, filter produk, link eksternal, pemilihan produk, penghapusan konten, dan ekspor CSV terfilter.
+// Tujuan: Komponen tabel interaktif klien-side terpaginasi untuk menampilkan riwayat konten. Menampilkan deskripsi lengkap & nama produk. Kolom like/komentar/share dihilangkan.
 // Caller: app/(dashboard)/history/page.tsx
 // Dependensi: types/index.ts, lucide-react, lib/utils/format.ts, components/history/ProductSelector.tsx, next/navigation (useRouter, usePathname, useSearchParams), app/actions/contents.ts (deleteContentAction, getAllFilteredContentsAction)
 // Main Functions: ContentHistoryTable
@@ -13,9 +13,6 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search,
   Eye,
-  ThumbsUp,
-  MessageSquare,
-  Share2,
   ExternalLink,
   Film,
   Calendar,
@@ -383,19 +380,16 @@ export default function ContentHistoryTable({
             <tr className="bg-bg border-b border-border text-[10px] font-bold text-text-muted uppercase tracking-wider">
               <th className="py-3.5 px-4">Tanggal Upload</th>
               <th className="py-3.5 px-4">TikTok ID</th>
-              <th className="py-3.5 px-4 min-w-[200px]">Deskripsi</th>
-              <th className="py-3.5 px-4 min-w-[180px]">Nama Produk</th>
+              <th className="py-3.5 px-4 min-w-[300px]">Deskripsi</th>
+              <th className="py-3.5 px-4 min-w-[220px]">Nama Produk</th>
               <th className="py-3.5 px-4 text-right">Views</th>
-              <th className="py-3.5 px-4 text-right">Likes</th>
-              <th className="py-3.5 px-4 text-right">Komentar</th>
-              <th className="py-3.5 px-4 text-right">Share</th>
               <th className="py-3.5 px-4 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-xs text-text-main">
             {contents.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-text-placeholder font-medium">
+                <td colSpan={6} className="py-8 text-center text-text-placeholder font-medium">
                   Tidak ada data konten ditemukan. Silakan gunakan Scraper di atas atau sesuaikan filter Anda.
                 </td>
               </tr>
@@ -418,9 +412,9 @@ export default function ContentHistoryTable({
                     {c.tiktok_content_id || "-"}
                   </td>
 
-                  {/* Description */}
+                  {/* Description — ditampilkan lengkap */}
                   <td className="py-3.5 px-4">
-                    <p className="line-clamp-2 max-w-[320px] leading-relaxed break-words">
+                    <p className="max-w-[480px] leading-relaxed break-words text-[11px]">
                       {c.desc_text || <span className="italic text-text-placeholder">Tanpa deskripsi</span>}
                     </p>
                   </td>
@@ -442,29 +436,7 @@ export default function ContentHistoryTable({
                     </span>
                   </td>
 
-                  {/* Likes */}
-                  <td className="py-3.5 px-4 text-right font-semibold whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      <ThumbsUp className="w-3 h-3 text-rose-400" />
-                      {fmt(c.likes)}
-                    </span>
-                  </td>
 
-                  {/* Comments */}
-                  <td className="py-3.5 px-4 text-right font-semibold whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      <MessageSquare className="w-3 h-3 text-emerald-400" />
-                      {fmt(c.comments)}
-                    </span>
-                  </td>
-
-                  {/* Shares */}
-                  <td className="py-3.5 px-4 text-right font-semibold whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      <Share2 className="w-3 h-3 text-purple-400" />
-                      {fmt(c.shares)}
-                    </span>
-                  </td>
 
                   {/* Actions */}
                   <td className="py-3.5 px-4 text-center">

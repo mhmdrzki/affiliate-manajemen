@@ -47,6 +47,7 @@ affiliate-manajemen/
 │   │   ├── contents.ts     # Aksi memperbarui relasi produk pada konten [NEW]
 │   │   ├── import.ts       # Aksi parsing spreadsheet & update database (legacy wrapper)
 │   │   ├── import-orders.ts # Aksi utama pemrosesan rekap pesanan TikTok & update DB
+│   │   ├── import-products.ts # Aksi impor data master produk dengan de-duplikasi [NEW]
 │   │   ├── migrate.ts      # Aksi dump data JSON lama ke database baru
 │   │   ├── products.ts     # Aksi tambah produk & update status produk
 │   │   ├── schedule.ts     # Aksi generate, load, dan hapus jadwal konten [NEW]
@@ -82,20 +83,24 @@ affiliate-manajemen/
 ## 4. Module Map (Backend Actions & Libs)
 
 1. **`app/actions/products.ts`**: Server Actions untuk manajemen master produk.
-   * *Fungsi*: `createProductAction()`, `updateProductStatusAction()`, `saveProductDescVariantAction()`, `updateProductAction()`, `deleteProductAction()`, `deleteProductsBulkAction()`, `resetProductTestingAction()`.
+   * *Fungsi*: `createProductAction()`, `updateProductStatusAction()`, `saveProductDescVariantAction()`, `updateProductAction()`, `updateProductsBulkAction()`, `deleteProductAction()`, `deleteProductsBulkAction()`, `resetProductTestingAction()`.
 2. **`app/actions/import-orders.ts`**: Server Actions pengolahan Excel analitik rekap pesanan TikTok.
    * *Fungsi*: `importAffiliateOrdersAction()`, `getImportLogsAction()`, `deleteImportLogAction()`, `recomputeProductAndContentMetrics()`, `getAllFilteredOrdersAction()`.
 3. **`lib/scoring/index.ts`**: Orkestrator utama skoring dan generator jadwal konten. Mendukung fitur "Estafet Rencana Masa Depan" — saat generate jadwal masa depan, membaca jadwal tersimpan sebagai riwayat virtual.
    * *Fungsi*: `generateDailySchedule()`, `generateWeeklySchedule()`, `loadParams()`, `loadSavedScheduleHistory()`.
 4. **`lib/scoring/aggregator.ts`**: Modul agregator data order dan data konten per produk.
    * *Fungsi*: `aggregateProducts()`.
-5. **`lib/scoring/engine.ts`**: Implementasi core filter keras, klasifikasi pool, dan formula skor Pool A & B.
+5. **`lib/scoring/engine.ts`**: Implementasi core filter keras, klasifikasi pool, formula skor Pool A & B, dan distribusi merata slot kolaborasi.
    * *Fungsi*: `filterKeras()`, `identifyCollaborationSlots()`, `classifyPools()`, `scorePoolA()`, `scorePoolB()`, `mergeAndRank()`.
-6. **`lib/scoring/scheduler.ts`**: Modul alokator slot (7 slot) harian berdasarkan kolaborasi, fairness queue, dan ranking.
+6. **`lib/scoring/scheduler.ts`**: Modul alokator slot (7 slot) harian dengan distribusi proporsional per pool. Menggunakan Bresenham spacing untuk menyebar Pool B merata di antara Pool A.
    * *Fungsi*: `allocateSlots()`.
 7. **`app/actions/schedule.ts`**: Server Actions manajemen data jadwal konten harian/mingguan dan parameter scoring.
-   * *Fungsi*: `generateAndSaveScheduleAction()`, `getSchedulesAction()`, `deleteScheduleAction()`, `getScoringParamsAction()`, `updateScoringParamsAction()`, `previewScoringAction()`.
+   * *Fungsi*: `generateAndSaveScheduleAction()`, `getSchedulesAction()`, `deleteScheduleAction()`, `deleteScheduleRangeAction()`, `clearAllSchedulesAction()`, `getScoringParamsAction()`, `updateScoringParamsAction()`, `previewScoringAction()`.
 8. **`app/actions/settings.ts`**: Server Actions untuk pembaruan profil pengguna.
    * *Fungsi*: `updateProfileAction()`.
 9. **`app/actions/contents.ts`**: Server Actions untuk manajemen riwayat konten.
    * *Fungsi*: `updateContentProductIdAction()`, `deleteContentAction()`, `getContentsAction()`, `getAllFilteredContentsAction()`.
+10. **`app/actions/import-products.ts`**: Server Actions untuk impor data master produk secara massal dari CSV/XLSX maupun ekstraksi link produk TikTok Shop. [NEW]
+    * *Fungsi*: `importProductsAction()`.
+11. **`app/actions/product-ranking.ts`**: Server Action untuk ranking produk berdasarkan total items sold dalam rentang waktu tertentu. [NEW]
+    * *Fungsi*: `getProductRankingAction()`.

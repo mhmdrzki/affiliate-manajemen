@@ -12,6 +12,8 @@ import React, { useState, useEffect } from "react";
 import {
   generateAndSaveScheduleAction,
   deleteScheduleAction,
+  deleteScheduleRangeAction,
+  clearAllSchedulesAction,
   getSchedulesAction,
   previewScoringAction,
 } from "@/app/actions/schedule";
@@ -162,6 +164,64 @@ export default function ScheduleGeneratorClient({
     if (res.success) {
       setActionMessage({ type: "success", text: res.message });
       await fetchSchedulesForDate(selectedDate);
+    } else {
+      setActionMessage({ type: "error", text: res.message });
+    }
+  };
+
+  const handleDeleteWeek = async () => {
+    const endDate = addDays(selectedDate, 6);
+    const formattedStart = new Date(selectedDate).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const formattedEnd = new Date(endDate).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus seluruh jadwal konten selama 7 hari dari tanggal ${formattedStart} sampai ${formattedEnd}?`
+      )
+    ) {
+      return;
+    }
+
+    setIsLoading(true);
+    setActionMessage(null);
+    const res = await deleteScheduleRangeAction(selectedDate, endDate);
+    setIsLoading(false);
+
+    if (res.success) {
+      setActionMessage({ type: "success", text: res.message });
+      await fetchSchedulesForDate(selectedDate);
+      await fetchPreviewForDate(selectedDate);
+    } else {
+      setActionMessage({ type: "error", text: res.message });
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (
+      !confirm(
+        "Apakah Anda yakin ingin menghapus SELURUH jadwal konten yang tersimpan dalam sistem? Tindakan ini bersifat permanen."
+      )
+    ) {
+      return;
+    }
+
+    setIsLoading(true);
+    setActionMessage(null);
+    const res = await clearAllSchedulesAction();
+    setIsLoading(false);
+
+    if (res.success) {
+      setActionMessage({ type: "success", text: res.message });
+      await fetchSchedulesForDate(selectedDate);
+      await fetchPreviewForDate(selectedDate);
     } else {
       setActionMessage({ type: "error", text: res.message });
     }
@@ -393,7 +453,7 @@ export default function ScheduleGeneratorClient({
 
               <div className="h-6 w-[1px] bg-border-light hidden sm:block"></div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleGenerateToday}
                   disabled={isLoading}
@@ -418,6 +478,27 @@ export default function ScheduleGeneratorClient({
                     <CalendarRange className="w-3.5 h-3.5" />
                   )}
                   <span>Generate Seminggu</span>
+                </button>
+
+                <button
+                  onClick={handleDeleteWeek}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-4 py-2 rounded-lg text-xs font-bold shadow-sm cursor-pointer transition disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>Hapus Seminggu</span>
+                </button>
+
+                <button
+                  onClick={handleDeleteAll}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg text-xs font-semibold shadow-sm cursor-pointer transition disabled:opacity-50"
+                >
+                  <span>Hapus Semua</span>
                 </button>
               </div>
             </div>

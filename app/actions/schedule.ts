@@ -2,7 +2,7 @@
 // Tujuan: Menyediakan server actions untuk CRUD jadwal konten dan parameter scoring.
 // Caller: components/schedule/* (Halaman UI Jadwal)
 // Dependensi: lib/db/index.ts, lib/db/schema.ts, lib/auth.ts, lib/scoring/index.ts, drizzle-orm
-// Main Functions: generateAndSaveScheduleAction, getSchedulesAction, deleteScheduleAction, getScoringParamsAction, updateScoringParamsAction, previewScoringAction
+// Main Functions: generateAndSaveScheduleAction, getSchedulesAction, deleteScheduleAction, deleteScheduleRangeAction, clearAllSchedulesAction, getScoringParamsAction, updateScoringParamsAction, previewScoringAction
 // Side Effects: Membaca dan menulis database (schedules, scoring_params)
 // */
 
@@ -186,6 +186,75 @@ export async function deleteScheduleAction(scheduleDate: string): Promise<Action
     return {
       success: false,
       message: err.message || "Gagal menghapus jadwal.",
+    };
+  }
+}
+
+/**
+ * Menghapus jadwal konten untuk rentang tanggal tertentu (inklusif).
+ */
+export async function deleteScheduleRangeAction(
+  startDateStr: string,
+  endDateStr: string
+): Promise<ActionResponse> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+
+  try {
+    await db
+      .delete(schedules)
+      .where(
+        and(
+          eq(schedules.user_id, user.id),
+          gte(schedules.schedule_date, startDateStr),
+          lte(schedules.schedule_date, endDateStr)
+        )
+      );
+
+    revalidatePath("/schedule");
+    revalidatePath("/products");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: `Berhasil menghapus seluruh slot jadwal dari tanggal ${startDateStr} sampai ${endDateStr}.`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal menghapus rentang jadwal.",
+    };
+  }
+}
+
+/**
+ * Menghapus seluruh jadwal konten milik user aktif dari database.
+ */
+export async function clearAllSchedulesAction(): Promise<ActionResponse> {
+  const user = await getMockUser();
+  if (!user) {
+    return { success: false, message: "Sesi habis, silakan login ulang." };
+  }
+
+  try {
+    await db
+      .delete(schedules)
+      .where(eq(schedules.user_id, user.id));
+
+    revalidatePath("/schedule");
+    revalidatePath("/products");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: "Berhasil menghapus seluruh jadwal konten Anda.",
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || "Gagal menghapus semua jadwal.",
     };
   }
 }

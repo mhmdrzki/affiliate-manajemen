@@ -49,6 +49,10 @@ export interface CollabSlotCandidate {
 
 /**
  * Mengidentifikasi produk kolaborasi yang sedang berjalan dan menghitung pace harian.
+ * Menggunakan formula distribusi merata: hitung berapa konten yang seharusnya
+ * sudah diposting sampai hari ini, lalu bandingkan dengan yang sudah diposting.
+ * Jika defisit → alokasi slot. Jika on-track → skip hari ini.
+ * Ini mencegah semua kuota kolaborasi dihabiskan di hari-hari awal.
  */
 export function identifyCollaborationSlots(
   eligible: ProductAggregate[],
@@ -56,6 +60,7 @@ export function identifyCollaborationSlots(
 ): CollabSlotCandidate[] {
   const result: CollabSlotCandidate[] = [];
   const refTime = referenceDate.getTime();
+  const DAY_MS = 24 * 60 * 60 * 1000;
 
   eligible.forEach((p) => {
     if (p.is_collaboration && p.collab_start_date && p.collab_deadline) {
@@ -68,17 +73,34 @@ export function identifyCollaborationSlots(
         const sisa_wajib = target - posted;
 
         if (sisa_wajib > 0) {
-          // Hitung selisih hari tersisa
+          // Hitung hari tersisa (untuk metadata)
           const diffMs = end - refTime;
-          const hari_tersisa = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
-          const pace_harian = Math.ceil(sisa_wajib / hari_tersisa);
+          const hari_tersisa = Math.max(1, Math.ceil(diffMs / DAY_MS));
 
-          result.push({
-            product: p,
-            pace_harian,
-            sisa_wajib,
-            hari_tersisa,
-          });
+          // === Formula Distribusi Merata ===
+          // Hitung total durasi kontrak dan hari yang sudah berlalu
+          const collab_total_days = Math.max(1, Math.ceil((end - start) / DAY_MS));
+          const days_elapsed = Math.max(0, Math.floor((refTime - start) / DAY_MS));
+
+          // Berapa konten yang seharusnya sudah diposting sampai hari ini?
+          // Menggunakan ceil agar posting pertama terjadi di awal periode
+          const expected_by_now = Math.min(
+            target,
+            Math.ceil(((days_elapsed + 1) * target) / collab_total_days)
+          );
+
+          // Pace = defisit antara yang seharusnya vs yang sudah diposting
+          // 0 jika on-track, >1 jika perlu catch-up
+          const pace_harian = Math.max(0, expected_by_now - posted);
+
+          if (pace_harian > 0) {
+            result.push({
+              product: p,
+              pace_harian,
+              sisa_wajib,
+              hari_tersisa,
+            });
+          }
         }
       }
     }
