@@ -1,8 +1,8 @@
 // /*
-// Tujuan: Menyediakan fungsi logika filter keras, klasifikasi pool produk, perhitungan formula Score_A & Score_B, dan sorting peringkat.
+// Tujuan: Menyediakan fungsi logika filter keras, deteksi produk hot, klasifikasi pool produk, perhitungan formula Score_A & Score_B, dan sorting peringkat.
 // Caller: lib/scoring/index.ts
 // Dependensi: lib/scoring/types.ts, lib/scoring/constants.ts
-// Main Functions: filterKeras, identifyCollaborationSlots, classifyPools, scorePoolA, scorePoolB, mergeAndRank
+// Main Functions: filterKeras, identifyCollaborationSlots, classifyPools, detectHotProducts, scorePoolA, scorePoolB, mergeAndRank
 // Side Effects: None (Stateless pure functions)
 // */
 
@@ -152,6 +152,31 @@ export function classifyPools(
 }
 
 /**
+ * Mendeteksi dan menandai produk "hot" berdasarkan velocity penjualan 7 hari terakhir.
+ * Produk hot = items_sold_7d >= HOT_THRESHOLD dan has_ever_sold == true.
+ * Hot score = min(1.0, items_sold_7d / HOT_MAX_SCALE) → skala 0-1 untuk bobot skor.
+ */
+export function detectHotProducts(
+  aggregates: ProductAggregate[],
+  params: Record<string, number>
+): ProductAggregate[] {
+  const threshold = params.HOT_THRESHOLD ?? 5;
+  const maxScale = params.HOT_MAX_SCALE ?? 30;
+
+  return aggregates.map((p) => {
+    const velocity = p.items_sold_7d;
+    const isHot = velocity >= threshold && p.has_ever_sold;
+    const hotScore = isHot ? Math.min(1.0, velocity / maxScale) : 0;
+
+    return {
+      ...p,
+      is_hot: isHot,
+      hot_score: hotScore,
+    };
+  });
+}
+
+/**
  * Menghitung Score_A untuk produk Proven.
  */
 export function scorePoolA(
@@ -159,11 +184,12 @@ export function scorePoolA(
   contentTrackingStart: string | null,
   params: Record<string, number>
 ): ScoredProduct[] {
-  const wRecency = params.WEIGHT_RECENCY ?? 0.35;
-  const wMomentum = params.WEIGHT_MOMENTUM ?? 0.20;
-  const wEfficiency = params.WEIGHT_EFFICIENCY ?? 0.20;
-  const wDebt = params.WEIGHT_CONTENT_DEBT ?? 0.15;
-  const wUntapped = params.WEIGHT_UNTAPPED ?? 0.10;
+  const wRecency = params.WEIGHT_RECENCY ?? 0.25;
+  const wMomentum = params.WEIGHT_MOMENTUM ?? 0.15;
+  const wEfficiency = params.WEIGHT_EFFICIENCY ?? 0.15;
+  const wDebt = params.WEIGHT_CONTENT_DEBT ?? 0.10;
+  const wUntapped = params.WEIGHT_UNTAPPED ?? 0.05;
+  const wHotBoost = params.WEIGHT_HOT_BOOST ?? 0.30;
   const floorRecency = params.FLOOR_RECENCY ?? 0.05;
 
   const count = products.length;
@@ -225,13 +251,17 @@ export function scorePoolA(
       }
     }
 
+    // f. HotProductBoost
+    const hotBoost = p.hot_score;
+
     // Final Composite Score
     const score =
       wRecency * recency +
       wMomentum * momentum +
       wEfficiency * efficiency +
       wDebt * contentDebt +
-      wUntapped * untappedBonus;
+      wUntapped * untappedBonus +
+      wHotBoost * hotBoost;
 
     return {
       product_id: p.product_id,
@@ -244,6 +274,7 @@ export function scorePoolA(
         efficiency,
         content_debt: contentDebt,
         untapped_bonus: untappedBonus,
+        hot_product_boost: hotBoost,
       },
       aggregate: p,
     };

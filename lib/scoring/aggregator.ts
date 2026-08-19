@@ -28,6 +28,8 @@ export async function aggregateProducts(
   const refTime = referenceDate.getTime();
   const date14dAgo = new Date(refTime - 14 * 24 * 60 * 60 * 1000).toISOString();
   const date28dAgo = new Date(refTime - 28 * 24 * 60 * 60 * 1000).toISOString();
+  const date7dAgo = new Date(refTime - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const date3dAgo = new Date(refTime - 3 * 24 * 60 * 60 * 1000).toISOString();
 
   // 1. Ambil semua master produk milik user
   const allProducts = await db
@@ -48,6 +50,9 @@ export async function aggregateProducts(
       last_order_date: sql<string | null>`max(${sales_data.ordered_at})`,
       orders_14d: sql<number>`sum(case when ${sales_data.ordered_at} >= ${date14dAgo} then 1 else 0 end)`,
       orders_14d_prev: sql<number>`sum(case when ${sales_data.ordered_at} >= ${date28dAgo} and ${sales_data.ordered_at} < ${date14dAgo} then 1 else 0 end)`,
+      items_sold_7d: sql<number>`sum(case when ${sales_data.ordered_at} >= ${date7dAgo} then ${sales_data.items_sold} else 0 end)`,
+      items_sold_3d: sql<number>`sum(case when ${sales_data.ordered_at} >= ${date3dAgo} then ${sales_data.items_sold} else 0 end)`,
+      orders_7d: sql<number>`sum(case when ${sales_data.ordered_at} >= ${date7dAgo} then 1 else 0 end)`,
     })
     .from(sales_data)
     .where(eq(sales_data.user_id, userId))
@@ -182,6 +187,9 @@ export async function aggregateProducts(
       // Order metrics
       total_orders: oData?.total_orders || 0,
       total_items_sold: oData?.total_items_sold || 0,
+      items_sold_7d: oData?.items_sold_7d || 0,
+      items_sold_3d: oData?.items_sold_3d || 0,
+      orders_7d: oData?.orders_7d || 0,
       last_order_date: oData?.last_order_date || null,
       dslo,
       orders_14d: oData?.orders_14d || 0,
@@ -197,6 +205,8 @@ export async function aggregateProducts(
       // Derived
       has_ever_sold: (oData?.total_orders || 0) > 0,
       product_age_days,
+      is_hot: false,
+      hot_score: 0,
       collab_content_posted,
     };
   });

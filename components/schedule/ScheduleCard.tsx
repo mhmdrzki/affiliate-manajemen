@@ -46,6 +46,11 @@ export default function ScheduleCard({
       typeClasses = "bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs";
       icon = <Flame className="w-3.5 h-3.5 text-rose-600" />;
       break;
+    case "hot_product":
+      typeLabel = "🔥 Winning Product";
+      typeClasses = "bg-orange-50 text-orange-700 border border-orange-200/80 shadow-2xs font-extrabold";
+      icon = <Flame className="w-3.5 h-3.5 text-orange-600" />;
+      break;
     case "fairness":
       typeLabel = "Keadilan (Fairness)";
       typeClasses = "bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs";

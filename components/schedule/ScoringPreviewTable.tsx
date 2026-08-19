@@ -65,6 +65,7 @@ export default function ScoringPreviewTable({
     const matchesSearch = row.product_name.toLowerCase().includes(search.toLowerCase());
     
     if (filterPool === "ALL") return matchesSearch;
+    if (filterPool === "HOT") return matchesSearch && row.aggregate?.is_hot;
     if (filterPool === "EXCLUDED") return matchesSearch && row.isExcluded;
     if (filterPool === "SCHEDULED") return matchesSearch && scheduledProductIds.has(row.product_id);
     return matchesSearch && row.pool === filterPool && !row.isExcluded;
@@ -127,6 +128,7 @@ export default function ScoringPreviewTable({
             className="bg-bg border border-border-light rounded-lg px-3 py-2 text-xs text-text-main font-semibold focus:outline-none focus:border-accent"
           >
             <option value="ALL">Semua Pool & Kelayakan</option>
+            <option value="HOT">🔥 Produk Winning / Hot</option>
             <option value="A">Pool A — Proven</option>
             <option value="B">Pool B — Testing</option>
             <option value="C">Pool C — Watchlist</option>
@@ -166,6 +168,7 @@ export default function ScoringPreviewTable({
                 <th className="px-4 py-3 font-mono text-[9px] text-center font-bold text-text-placeholder">Momentum</th>
                 <th className="px-4 py-3 font-mono text-[9px] text-center font-bold text-text-placeholder">Efficiency</th>
                 <th className="px-4 py-3 font-mono text-[9px] text-center font-bold text-text-placeholder">Content Debt</th>
+                <th className="px-4 py-3 font-mono text-[9px] text-center font-bold text-text-placeholder text-orange-600">Hot Boost</th>
                 <th
                   onClick={() => handleSort("agg_total_orders")}
                   className="px-4 py-3 cursor-pointer hover:text-text-main font-bold text-center"
@@ -173,6 +176,15 @@ export default function ScoringPreviewTable({
                   <div className="flex items-center justify-center gap-1">
                     <span>Orders</span>
                     <RenderSortIcon field="agg_total_orders" />
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort("agg_items_sold_7d")}
+                  className="px-4 py-3 cursor-pointer hover:text-text-main font-bold text-center"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    <span>Items 7d</span>
+                    <RenderSortIcon field="agg_items_sold_7d" />
                   </div>
                 </th>
                 <th
@@ -207,13 +219,14 @@ export default function ScoringPreviewTable({
             <tbody className="divide-y divide-border-light text-xs text-text-main">
               {sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-8 text-text-placeholder font-semibold">
+                  <td colSpan={13} className="text-center py-8 text-text-placeholder font-semibold">
                     Tidak ada produk yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
               ) : (
                 sortedRows.map((row) => {
                   const isScheduled = scheduledProductIds.has(row.product_id);
+                  const isHot = row.aggregate?.is_hot;
                   return (
                     <tr
                       key={row.product_id}
@@ -223,7 +236,14 @@ export default function ScoringPreviewTable({
                     >
                       <td className="px-4 py-3 font-semibold max-w-xs truncate">
                         <div className="flex flex-col gap-0.5">
-                          <span className="truncate" title={row.product_name}>{row.product_name}</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {isHot && (
+                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black bg-orange-100 text-orange-800 border border-orange-200 flex-shrink-0">
+                                🔥 HOT
+                              </span>
+                            )}
+                            <span className="truncate" title={row.product_name}>{row.product_name}</span>
+                          </div>
                           {isScheduled && (
                             <span className="text-[9px] text-accent font-black uppercase tracking-wider">
                               ✓ Masuk Jadwal Hari Ini
@@ -268,9 +288,15 @@ export default function ScoringPreviewTable({
                       <td className="px-4 py-3 text-center font-mono text-[10px] text-text-muted">
                         {row.score_breakdown?.content_debt?.toFixed(2) ?? "—"}
                       </td>
+                      <td className="px-4 py-3 text-center font-mono text-[10px] font-bold text-orange-600">
+                        {row.score_breakdown?.hot_product_boost !== undefined ? row.score_breakdown.hot_product_boost.toFixed(2) : "—"}
+                      </td>
                       {/* Aggregate metrics */}
                       <td className="px-4 py-3 text-center font-mono text-text-muted">
                         {row.aggregate?.total_orders}
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono font-bold text-orange-600">
+                        {row.aggregate?.items_sold_7d ?? 0}
                       </td>
                       <td className="px-4 py-3 text-center font-mono text-text-muted">
                         {row.aggregate?.total_content}
@@ -292,7 +318,7 @@ export default function ScoringPreviewTable({
       <div className="flex items-center gap-1.5 text-[10px] text-text-placeholder px-1">
         <Info className="w-3.5 h-3.5 text-accent" />
         <span>
-          Rumus Efisiensi: <code>orders / max(content, 1)</code> di-skala rank-percentile. Bobot: Recency (35%), Momentum (20%), Efisiensi (20%), Debt (15%), Untapped (10%).
+          Rumus Efisiensi: <code>orders / max(content, 1)</code> di-skala rank-percentile. Bobot: Recency (25%), Momentum (15%), Efisiensi (15%), Debt (10%), Untapped (5%), Hot Boost (30%).
         </span>
       </div>
     </div>

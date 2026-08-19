@@ -110,7 +110,7 @@ export interface Schedule {
   slot_number: number;
   product_id: string | null;
   product_name: string;
-  slot_type: 'collaboration' | 'fairness' | 'ranked';
+  slot_type: 'collaboration' | 'hot_product' | 'fairness' | 'ranked';
   pool: 'A' | 'B' | null;
   score: number | null;
   created_at: string;

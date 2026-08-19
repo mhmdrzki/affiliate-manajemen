@@ -272,6 +272,7 @@ export default function ScheduleGeneratorClient({
   const totalSlotsScheduled = schedulesList.length;
   const uniqueProductsCount = new Set(schedulesList.map(s => s.product_id).filter(Boolean)).size;
   const collabCount = schedulesList.filter(s => s.slot_type === "collaboration").length;
+  const hotCount = schedulesList.filter(s => s.slot_type === "hot_product").length;
   const fairnessCount = schedulesList.filter(s => s.slot_type === "fairness").length;
   const rankedCount = schedulesList.filter(s => s.slot_type === "ranked").length;
 
@@ -366,10 +367,14 @@ export default function ScheduleGeneratorClient({
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
                 <span>Distribusi Slot</span>
               </span>
-              <div className="grid grid-cols-3 gap-1 mt-2 text-[9px] font-extrabold">
+              <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] font-extrabold">
                 <div className="flex flex-col bg-rose-50 text-rose-700 px-1.5 py-1 rounded border border-rose-100 items-center justify-center">
                   <span>Collab</span>
                   <span className="text-xs mt-0.5">{collabCount}</span>
+                </div>
+                <div className="flex flex-col bg-orange-50 text-orange-700 px-1.5 py-1 rounded border border-orange-100 items-center justify-center">
+                  <span>🔥 Win</span>
+                  <span className="text-xs mt-0.5">{hotCount}</span>
                 </div>
                 <div className="flex flex-col bg-amber-50 text-amber-700 px-1.5 py-1 rounded border border-amber-100 items-center justify-center">
                   <span>Fair</span>
@@ -384,212 +389,191 @@ export default function ScheduleGeneratorClient({
 
             <div className="bg-white border border-border-light p-4 rounded-xl shadow-2xs">
               <span className="text-[10px] font-extrabold uppercase text-text-placeholder tracking-wider flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-blue-500" />
-                <span>Efektivitas Fairness</span>
+                <CalendarRange className="w-3.5 h-3.5 text-rose-500" />
+                <span>Navigasi Rentang Minggu</span>
               </span>
-              <div className="text-sm font-black text-text-main mt-1.5">
-                {scoringPreview?.metadata?.fairness_active ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 text-[10px] font-bold">
-                    Fairness Aktif
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 text-[10px] font-bold">
-                    Menunggu Data
-                  </span>
-                )}
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-bg border border-border-light rounded-lg px-2.5 py-1.5 text-xs font-mono text-text-main font-semibold focus:outline-none focus:border-accent w-full"
+                />
               </div>
-              <p className="text-[10px] text-text-placeholder mt-2 font-medium">
-                {scoringPreview?.metadata?.data_maturity_days !== undefined 
-                  ? `${scoringPreview.metadata.data_maturity_days} hari terekam (target min. ${params.FAIRNESS_WINDOW || 30}h)` 
-                  : "Maturity data terekam"}
-              </p>
+              <p className="text-[9px] text-text-placeholder mt-1 font-medium">Ubah tanggal awal batch jadwal</p>
             </div>
           </div>
 
-          {/* Controls Panel */}
-          <div className="bg-white border border-border-light p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-accent" />
-                <span className="text-xs font-bold text-text-main">Mulai Tanggal:</span>
-              </div>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-bg border border-border-light rounded-lg px-3 py-1.5 text-xs text-text-main font-semibold font-mono focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-              />
+          {/* Action Toolbar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-border-light p-4 rounded-xl shadow-2xs">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleGenerateToday}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover text-xs font-bold shadow-md cursor-pointer transition disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Generate Hari Ini</span>
+              </button>
+
+              <button
+                onClick={handleGenerateWeek}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold shadow-md cursor-pointer transition disabled:opacity-50"
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span>Generate 7 Hari</span>
+              </button>
+
+              <button
+                onClick={handleDeleteWeek}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus 7 Hari</span>
+              </button>
+
+              <button
+                onClick={handleDeleteAll}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-border-light text-text-placeholder hover:text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-2xs cursor-pointer disabled:opacity-50"
+                title="Kosongkan seluruh jadwal di database"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reset Semua</span>
+              </button>
             </div>
 
-            {/* View Switcher Toggle & Generate Buttons */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Toggle switch */}
-              <div className="flex bg-bg p-1 rounded-lg border border-border-light">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("timeline")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === "timeline"
-                      ? "bg-white text-accent shadow-2xs"
-                      : "text-text-placeholder hover:text-text-main"
-                  }`}
-                >
-                  <ListFilter className="w-3.5 h-3.5" />
-                  <span>Fokus Harian</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                    viewMode === "grid"
-                      ? "bg-white text-accent shadow-2xs"
-                      : "text-text-placeholder hover:text-text-main"
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Peta Mingguan</span>
-                </button>
-              </div>
-
-              <div className="h-6 w-[1px] bg-border-light hidden sm:block"></div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={handleGenerateToday}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 bg-accent text-white hover:bg-accent-hover px-4 py-2 rounded-lg text-xs font-bold shadow-md cursor-pointer transition disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5" />
-                  )}
-                  <span>Generate Hari Ini</span>
-                </button>
-
-                <button
-                  onClick={handleGenerateWeek}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md cursor-pointer transition disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <CalendarRange className="w-3.5 h-3.5" />
-                  )}
-                  <span>Generate Seminggu</span>
-                </button>
-
-                <button
-                  onClick={handleDeleteWeek}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-4 py-2 rounded-lg text-xs font-bold shadow-sm cursor-pointer transition disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-3.5 h-3.5" />
-                  )}
-                  <span>Hapus Seminggu</span>
-                </button>
-
-                <button
-                  onClick={handleDeleteAll}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg text-xs font-semibold shadow-sm cursor-pointer transition disabled:opacity-50"
-                >
-                  <span>Hapus Semua</span>
-                </button>
-              </div>
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-2xs">
+              <button
+                onClick={() => setViewMode("timeline")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                  viewMode === "timeline"
+                    ? "bg-white text-text-main shadow-2xs"
+                    : "text-text-placeholder hover:text-text-main"
+                }`}
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                <span>Fokus Harian</span>
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                  viewMode === "grid"
+                    ? "bg-white text-text-main shadow-2xs"
+                    : "text-text-placeholder hover:text-text-main"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid Seminggu</span>
+              </button>
             </div>
           </div>
 
-          {/* VIEW: 1. Fokus Harian (Timeline View - Recommended) */}
+          {/* VIEW MODE 1: TIMELINE (DAILY FOCUS) */}
           {viewMode === "timeline" && (
-            <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="px-1 flex justify-between items-center">
-                <h2 className="text-sm font-extrabold text-text-main">
-                  Alur Jadwal Harian
-                </h2>
-                <div className="flex items-center gap-1.5 text-[10px] text-text-placeholder">
-                  <Info className="w-3.5 h-3.5 text-accent" />
-                  <span>Pilih hari di track untuk melihat detail slot konten</span>
-                </div>
-              </div>
-
-              {/* Horizontal Days Track */}
-              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-                {Array.from(groupedSchedules.entries()).map(([dateStr, slots]) => {
+            <div className="space-y-4">
+              {/* Date Selector Tabs (7 Days) */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                {Array.from({ length: 7 }).map((_, i) => {
+                  const dateStr = addDays(selectedDate, i);
                   const dateObj = new Date(dateStr);
-                  const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "long" });
-                  const formattedDate = dateObj.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+                  const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "short" });
+                  const dayNum = dateObj.getDate();
+                  const monthName = dateObj.toLocaleDateString("id-ID", { month: "short" });
                   const isSelected = selectedTimelineDate === dateStr;
-                  const isToday = dateStr === new Date().toISOString().split("T")[0];
+                  const daySlotsCount = schedulesList.filter((s) => s.schedule_date === dateStr).length;
 
                   return (
                     <button
                       key={dateStr}
-                      type="button"
                       onClick={() => setSelectedTimelineDate(dateStr)}
-                      className={`flex-shrink-0 flex flex-col p-3.5 rounded-xl border text-left min-w-[135px] transition-all cursor-pointer shadow-2xs ${
+                      className={`flex flex-col items-center min-w-[90px] px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
                         isSelected
-                          ? "border-accent bg-accent/5 ring-1 ring-accent"
-                          : "border-border-light bg-white hover:border-border-active hover:bg-slate-50/50"
+                          ? "bg-accent text-white border-accent shadow-md scale-[1.02]"
+                          : "bg-white border-border-light text-text-main hover:border-accent/40 hover:bg-slate-50"
                       }`}
                     >
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${isSelected ? "text-accent" : "text-text-placeholder"}`}>
-                        {dayName} {isToday && "★"}
+                      <span className={`text-[9px] font-mono uppercase tracking-wider ${isSelected ? "text-white/80" : "text-text-placeholder"}`}>
+                        {dayName}
                       </span>
-                      <span className="text-sm font-bold text-text-main mt-0.5">{formattedDate}</span>
-                      <span className={`text-[9px] font-black mt-3 px-2 py-0.5 rounded-md inline-block w-fit ${
-                        slots.length > 0 
-                          ? "bg-indigo-50 text-indigo-700 border border-indigo-150" 
-                          : "bg-slate-50 text-slate-400 border border-slate-200"
-                      }`}>
-                        {slots.length} Video
-                      </span>
+                      <span className="text-base font-black font-mono my-0.5">{dayNum}</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`text-[9px] font-bold ${isSelected ? "text-white/90" : "text-text-muted"}`}>
+                          {monthName}
+                        </span>
+                        {daySlotsCount > 0 && (
+                          <span
+                            className={`px-1 rounded-full text-[8px] font-black ${
+                              isSelected ? "bg-white/20 text-white" : "bg-accent/10 text-accent"
+                            }`}
+                          >
+                            {daySlotsCount}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Focus Date Detail Slots */}
+              {/* Slots Container for Selected Timeline Date */}
               <div className="bg-white border border-border-light rounded-xl p-5 shadow-2xs space-y-4">
-                <div className="flex justify-between items-center pb-3 border-b border-border-light">
+                <div className="flex items-center justify-between border-b border-border-light pb-4">
                   <div>
-                    <h3 className="text-xs sm:text-sm font-black text-text-main uppercase tracking-wider">
-                      Detail Jadwal — {new Date(selectedTimelineDate).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+                    <h3 className="text-sm font-black text-text-main flex items-center gap-2">
+                      <span>
+                        Slot Konten Hari{" "}
+                        {new Date(selectedTimelineDate).toLocaleDateString("id-ID", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
                     </h3>
-                    <p className="text-[10px] text-text-placeholder mt-0.5 font-semibold">
-                      Total slot terpakai: {groupedSchedules.get(selectedTimelineDate)?.length || 0} slot
+                    <p className="text-[11px] text-text-placeholder mt-0.5 font-medium">
+                      Rekomendasi 7 slot harian terbaik hasil scoring algoritma
                     </p>
                   </div>
-                  {groupedSchedules.get(selectedTimelineDate) && groupedSchedules.get(selectedTimelineDate)!.length > 0 && (
+
+                  {schedulesList.filter((s) => s.schedule_date === selectedTimelineDate).length > 0 && (
                     <button
                       onClick={() => handleDeleteDate(selectedTimelineDate)}
                       disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 hover:border-red-400 bg-white hover:bg-red-50 text-[10px] font-bold text-red-600 transition cursor-pointer"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition shadow-2xs cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Hapus Jadwal Hari Ini</span>
+                      <span>Hapus Hari Ini</span>
                     </button>
                   )}
                 </div>
 
-                {/* Timeline vertical slots */}
-                <div className="space-y-3">
-                  {!groupedSchedules.get(selectedTimelineDate) || groupedSchedules.get(selectedTimelineDate)!.length === 0 ? (
-                    <div className="py-12 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-center">
-                      <Calendar className="w-8 h-8 text-text-placeholder/60 mb-2" />
-                      <h4 className="text-xs font-bold text-text-main">Belum Ada Jadwal Konten</h4>
-                      <p className="text-[10px] text-text-placeholder mt-1 max-w-xs leading-relaxed font-semibold">
-                        Jadwal pada hari ini masih kosong. Silakan generate jadwal harian atau seminggu menggunakan tombol di atas.
-                      </p>
-                    </div>
-                  ) : (
-                    groupedSchedules.get(selectedTimelineDate)!
-                      .sort((a, b) => a.slot_number - b.slot_number)
-                      .map((slot) => (
+                {/* Slot Cards List */}
+                {(() => {
+                  const dailySlots = schedulesList
+                    .filter((s) => s.schedule_date === selectedTimelineDate)
+                    .sort((a, b) => a.slot_number - b.slot_number);
+
+                  if (dailySlots.length === 0) {
+                    return (
+                      <div className="py-12 text-center space-y-3 bg-slate-50/50 border border-dashed border-border-light rounded-xl">
+                        <Calendar className="w-8 h-8 text-text-placeholder mx-auto" />
+                        <div>
+                          <h4 className="text-xs font-bold text-text-main">Belum Ada Jadwal Tersimpan</h4>
+                          <p className="text-[11px] text-text-placeholder mt-1 font-medium">
+                            Klik tombol "Generate Hari Ini" atau "Generate 7 Hari" untuk membuat alokasi slot harian.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {dailySlots.map((slot) => (
                         <ScheduleCard
                           key={slot.id}
                           productId={slot.product_id}
@@ -598,60 +582,52 @@ export default function ScheduleGeneratorClient({
                           slotType={slot.slot_type}
                           pool={slot.pool}
                           score={slot.score}
-                          paceInfo={slot.pace_info}
                           onViewScoring={handleViewScoring}
                         />
-                      ))
-                  )}
-                </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
 
-          {/* VIEW: 2. Peta Mingguan (Grid Board View) */}
+          {/* VIEW MODE 2: GRID SEMINGGU */}
           {viewMode === "grid" && (
-            <div className="space-y-3 animate-in fade-in duration-200">
-              <div className="px-1 flex justify-between items-center">
-                <h2 className="text-sm font-bold text-text-main">
-                  Peta Jadwal Mingguan (7 Hari)
-                </h2>
-                <div className="flex items-center gap-1.5 text-[10px] text-text-placeholder">
-                  <Info className="w-3.5 h-3.5 text-accent" />
-                  <span>Klik pada kartu slot kecil untuk memfokuskan hari tersebut</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-                {Array.from(groupedSchedules.entries()).map(([dateStr, slots]) => {
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                {Array.from({ length: 7 }).map((_, i) => {
+                  const dateStr = addDays(selectedDate, i);
                   const dateObj = new Date(dateStr);
                   const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "short" });
-                  const formattedDate = dateObj.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
-                  const isToday = dateStr === new Date().toISOString().split("T")[0];
+                  const dayNum = dateObj.getDate();
+                  const monthName = dateObj.toLocaleDateString("id-ID", { month: "short" });
+
+                  const slots = schedulesList.filter((s) => s.schedule_date === dateStr);
 
                   return (
                     <div
                       key={dateStr}
-                      className={`bg-white border rounded-xl p-3.5 space-y-3 flex flex-col justify-between shadow-2xs transition-all ${
-                        isToday
-                          ? "border-accent shadow-[0_0_12px_rgba(99,102,241,0.08)] bg-accent/5"
-                          : "border-border-light hover:border-border-active"
-                      }`}
+                      className="bg-white border border-border-light rounded-xl p-3 shadow-2xs flex flex-col justify-between"
                     >
-                      {/* Column Header */}
-                      <div className="border-b border-border-light pb-2 flex justify-between items-start">
+                      {/* Day Header */}
+                      <div className="flex items-center justify-between border-b border-border-light pb-2 mb-2 font-mono">
                         <div>
-                          <h4 className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-accent" : "text-text-main"}`}>
-                            {dayName} {isToday && "(Hari Ini)"}
-                          </h4>
-                          <p className="text-[10px] text-text-placeholder font-mono mt-0.5">{formattedDate}</p>
+                          <div className="text-[9px] text-text-placeholder uppercase font-extrabold">{dayName}</div>
+                          <div className="text-sm font-black text-text-main">
+                            {dayNum} <span className="text-[10px] text-text-muted font-bold">{monthName}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-extrabold text-accent bg-accent/10 px-1.5 py-0.5 rounded">
+                            {slots.length} video
+                          </span>
                           {slots.length > 0 && (
                             <button
                               onClick={() => handleDeleteDate(dateStr)}
                               disabled={isLoading}
                               title="Hapus Jadwal Hari Ini"
-                              className="p-1 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition cursor-pointer"
+                              className="text-red-400 hover:text-red-600 transition"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -660,59 +636,43 @@ export default function ScheduleGeneratorClient({
                       </div>
 
                       {/* Slots List */}
-                      <div className="flex-1 space-y-2">
-                        {slots.length === 0 ? (
-                          <div className="h-full min-h-[150px] flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-lg py-8 px-2 text-center bg-slate-50/50">
-                            <Calendar className="w-5 h-5 text-text-placeholder/60 mb-1.5" />
-                            <span className="text-[10px] text-text-placeholder font-medium">Kosong</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {slots
-                              .sort((a, b) => a.slot_number - b.slot_number)
-                              .map((slot) => {
-                                let badgeClass = "bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs";
-                                if (slot.slot_type === "collaboration") {
-                                  badgeClass = "bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs";
-                                } else if (slot.slot_type === "fairness") {
-                                  badgeClass = "bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs";
-                                }
-                                return (
-                                  <div
-                                    key={slot.id}
-                                    className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-[10px] space-y-1.5 hover:border-accent/40 hover:bg-white hover:shadow-2xs transition-all duration-200 cursor-pointer"
-                                    onClick={() => {
-                                      setSelectedTimelineDate(dateStr);
-                                      setViewMode("timeline");
-                                    }}
-                                    title="Klik untuk lihat detail di Tampilan Fokus Harian"
-                                  >
-                                    <div className="flex justify-between items-center gap-1 font-mono">
-                                      <span className="font-extrabold text-accent">#{slot.slot_number}</span>
-                                      <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded tracking-wide ${badgeClass}`}>
-                                        {slot.slot_type === "collaboration"
-                                          ? "Collab"
-                                          : slot.slot_type === "fairness"
-                                          ? "Fair"
-                                          : "Rank"}
-                                      </span>
-                                    </div>
-                                    <div
-                                      className="font-bold text-text-main line-clamp-2 leading-tight tracking-tight"
-                                      title={slot.product_name}
-                                    >
-                                      {slot.product_name}
-                                    </div>
-                                    {slot.score !== null && (
-                                      <div className="text-[9px] text-indigo-600 font-bold font-mono">
-                                        Skor: {slot.score.toFixed(2)}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        )}
+                      <div className="space-y-2">
+                        {slots
+                          .sort((a, b) => a.slot_number - b.slot_number)
+                          .map((slot) => {
+                            let badgeClass = "bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs";
+                            if (slot.slot_type === "collaboration") {
+                              badgeClass = "bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs";
+                            } else if (slot.slot_type === "hot_product") {
+                              badgeClass = "bg-orange-50 text-orange-700 border border-orange-200/80 shadow-2xs";
+                            } else if (slot.slot_type === "fairness") {
+                              badgeClass = "bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs";
+                            }
+                            return (
+                              <div
+                                key={slot.id}
+                                className="p-2 rounded bg-slate-50 border border-slate-100 text-[10px] cursor-pointer hover:border-accent/40"
+                                onClick={() => {
+                                  setSelectedTimelineDate(dateStr);
+                                  setViewMode("timeline");
+                                }}
+                              >
+                                <div className="flex justify-between items-center gap-1 font-mono">
+                                  <span className="font-extrabold text-accent">#{slot.slot_number}</span>
+                                  <span className={`text-[8px] font-black uppercase px-1 py-0.5 rounded tracking-wide ${badgeClass}`}>
+                                    {slot.slot_type === "collaboration"
+                                      ? "Collab"
+                                      : slot.slot_type === "hot_product"
+                                      ? "🔥 Win"
+                                      : slot.slot_type === "fairness"
+                                      ? "Fair"
+                                      : "Rank"}
+                                  </span>
+                                </div>
+                                <div className="font-bold text-text-main line-clamp-1">{slot.product_name}</div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                   );
@@ -747,7 +707,6 @@ export default function ScheduleGeneratorClient({
             <ScoringPreviewTable
               scoredProducts={(() => {
                 const list = (scoringPreview.slots || [])
-                  .filter((s: any) => s.slot_type === "ranked" || s.slot_type === "fairness")
                   .map((s: any) => ({
                     product_id: s.product_id,
                     product_name: s.product_name,
@@ -784,8 +743,9 @@ export default function ScheduleGeneratorClient({
               setFilterPool={setPreviewFilter}
             />
           ) : (
-            <div className="text-center py-12 text-text-placeholder font-semibold">
-              Gagal memuat preview scoring.
+            <div className="text-center py-12 bg-white border border-border-light rounded-xl">
+              <RefreshCw className="w-6 h-6 text-accent animate-spin mx-auto mb-2" />
+              <span className="text-xs text-text-placeholder font-medium">Memuat data kalkulasi skoring...</span>
             </div>
           )}
         </div>

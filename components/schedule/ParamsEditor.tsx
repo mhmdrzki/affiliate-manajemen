@@ -62,6 +62,70 @@ export default function ParamsEditor({ initialParams, onParamsSaved }: ParamsEdi
 
   const formFields = [
     {
+      group: "🔥 Hot Product Detection (Winning Products)",
+      fields: [
+        {
+          key: "HOT_THRESHOLD",
+          label: "Hot Threshold (Items Sold 7 Hari)",
+          desc: "Minimum items terjual dalam 7 hari terakhir agar produk dianggap 'Hot/Winning'.",
+          step: 1,
+        },
+        {
+          key: "HOT_MAX_SCALE",
+          label: "Hot Max Scale (Skala Normalisasi)",
+          desc: "Pembagi normalisasi velocity. Produk dengan items_sold_7d ≥ nilai ini mendapat hot_score = 1.0.",
+          step: 5,
+        },
+        {
+          key: "HOT_PRIORITY_SLOTS",
+          label: "Slot Prioritas Hot Per Hari",
+          desc: "Maks slot Step 2 (prioritas dijamin) untuk hot product per hari. Sisa hot product bersaing di ranking biasa.",
+          step: 1,
+        },
+        {
+          key: "WEIGHT_HOT_BOOST",
+          label: "Bobot Hot Product Boost",
+          desc: "Bobot komponen Hot Product dalam Score_A. Semakin besar, semakin dominan winning product.",
+          step: 0.05,
+        },
+      ],
+    },
+    {
+      group: "Bobot Formula Score_A (Proven)",
+      fields: [
+        {
+          key: "WEIGHT_RECENCY",
+          label: "Bobot Recency",
+          desc: "Bobot skor berdasarkan kesegaran order terakhir (DSLO).",
+          step: 0.05,
+        },
+        {
+          key: "WEIGHT_MOMENTUM",
+          label: "Bobot Momentum",
+          desc: "Bobot tren pertumbuhan order 14 hari terakhir vs sebelumnya.",
+          step: 0.05,
+        },
+        {
+          key: "WEIGHT_EFFICIENCY",
+          label: "Bobot Efficiency",
+          desc: "Bobot efisiensi rasio closing per konten (rank-percentile).",
+          step: 0.05,
+        },
+        {
+          key: "WEIGHT_CONTENT_DEBT",
+          label: "Bobot Content Debt",
+          desc: "Bobot pendorong untuk produk yang sudah lama tidak diberi konten.",
+          step: 0.05,
+        },
+        {
+          key: "WEIGHT_UNTAPPED",
+          label: "Bobot Untapped Bonus",
+          desc: "Bonus untuk produk dengan jumlah konten di bawah rata-rata Pool A.",
+          step: 0.05,
+        },
+      ],
+    },
+    {
       group: "Pool Klasifikasi & Testing",
       fields: [
         {
@@ -107,8 +171,8 @@ export default function ParamsEditor({ initialParams, onParamsSaved }: ParamsEdi
         },
         {
           key: "MAX_SLOT_PER_PRODUK",
-          label: "Max Slots Per Product (Batas Keberagaman)",
-          desc: "Batas maksimal jumlah slot yang dapat diperoleh satu produk dalam hari yang sama.",
+          label: "Max Slots Per Product Standard",
+          desc: "Batas maksimal jumlah slot per produk standar (non-hot) dalam hari yang sama.",
           step: 1,
         },
         {

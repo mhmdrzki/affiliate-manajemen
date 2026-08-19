@@ -90,8 +90,8 @@ affiliate-manajemen/
    * *Fungsi*: `generateDailySchedule()`, `generateWeeklySchedule()`, `loadParams()`, `loadSavedScheduleHistory()`.
 4. **`lib/scoring/aggregator.ts`**: Modul agregator data order dan data konten per produk.
    * *Fungsi*: `aggregateProducts()`.
-5. **`lib/scoring/engine.ts`**: Implementasi core filter keras, klasifikasi pool, formula skor Pool A & B, dan distribusi merata slot kolaborasi.
-   * *Fungsi*: `filterKeras()`, `identifyCollaborationSlots()`, `classifyPools()`, `scorePoolA()`, `scorePoolB()`, `mergeAndRank()`.
+5. **`lib/scoring/engine.ts`**: Implementasi core filter keras, deteksi produk hot, klasifikasi pool, formula skor Pool A & B, dan distribusi merata slot kolaborasi.
+   * *Fungsi*: `filterKeras()`, `identifyCollaborationSlots()`, `classifyPools()`, `detectHotProducts()`, `scorePoolA()`, `scorePoolB()`, `mergeAndRank()`.
 6. **`lib/scoring/scheduler.ts`**: Modul alokator slot (7 slot) harian dengan distribusi proporsional per pool. Menggunakan Bresenham spacing untuk menyebar Pool B merata di antara Pool A.
    * *Fungsi*: `allocateSlots()`.
 7. **`app/actions/schedule.ts`**: Server Actions manajemen data jadwal konten harian/mingguan dan parameter scoring.

@@ -79,29 +79,24 @@ Pool C hanya kembali aktif lewat trigger manual dari user (tandai "coba lagi" di
 
 ### Pool A (Proven)
 ```
-Score_A = (0.35 x Recency) + (0.20 x Momentum) + (0.20 x Efficiency)
-        + (0.15 x ContentDebt) + (0.10 x UntappedBonus)
+Score_A = (0.25 x Recency) + (0.15 x Momentum) + (0.15 x Efficiency)
+        + (0.10 x ContentDebt) + (0.05 x UntappedBonus) + (0.30 x HotProductBoost)
 ```
 
-- **Recency** = `max(0.05, 1 - DSLO/30)` — floor 0.05 supaya produk lama tidak closing tetap punya skor minimum, tidak pernah nol mutlak.
-- **Momentum** = normalisasi `(orders_14d - orders_14d_prev)`, di-clamp ke [-1, 1]. Naik → dorong ke atas. Turun → dikurangi porsinya, bukan didiskualifikasi.
-- **Efficiency** = rank-percentile dari `total_gmv / max(total_content, 1)` dibanding sesama Pool A (bukan angka mentah, biar tidak bias ke produk mahal).
-- **ContentDebt** = `min(1, DSLC/21)` — makin lama nggak "dicek ulang" lewat konten, makin didorong naik. Ini yang menjamin produk proven tidak pernah benar-benar dilupakan.
-- **UntappedBonus**: berlaku kalau `total_content` sangat rendah dibanding rata-rata Pool A. Besarnya bonus di-skala oleh keyakinan data:
-  ```
-  jika Tanggal Ditambahkan >= content_tracking_start:
-      bonus penuh (1.0)   # histori kontennya pasti lengkap tercatat
-  jika Tanggal Ditambahkan < content_tracking_start:
-      bonus dikecilkan (0.3)  # bisa jadi ada histori konten lama yang tak tercatat
-  ```
+- **Recency** = `max(0.05, 1 - DSLO/30)` — floor 0.05 supaya produk lama tidak closing tetap punya skor minimum.
+- **Momentum** = normalisasi `(orders_14d - orders_14d_prev)`, di-clamp ke [-1, 1].
+- **Efficiency** = rank-percentile dari `total_orders / max(total_content, 1)` dibanding sesama Pool A.
+- **ContentDebt** = `min(1, DSLC/21)` — mendorong produk proven yang belum dicek ulang.
+- **UntappedBonus**: berlaku jika `total_content` rendah dibanding rata-rata Pool A.
+- **HotProductBoost**: `min(1.0, items_sold_7d / HOT_MAX_SCALE)` jika `items_sold_7d >= HOT_THRESHOLD` (default 5 items dalam 7 hari). Memberikan prioritas tertinggi untuk produk winning/viral.
 
 ### Pool B (Testing)
 ```
-Score_B = BASE_TESTING - (total_content x 0.12) + NewProductBonus
+Score_B = BASE_TESTING - (total_content x 0.05) + NewProductBonus
 ```
-- `BASE_TESTING` default 0.6 (kompetitif tapi di bawah rata-rata Pool A)
-- Setiap konten testing yang sudah dipakai tanpa hasil, sedikit menurunkan urgensinya
-- `NewProductBonus = +0.3` jika `total_content == 0` (produk yang belum pernah dicoba didahulukan dari yang sudah dicoba 3-4x tanpa hasil)
+- `BASE_TESTING` default 0.6
+- `TESTING_CONTENT_PENALTY` default 0.05
+- `NewProductBonus = +0.3` jika `total_content == 0`
 
 Pool A dan Pool B digabung jadi satu ranking untuk berebut sisa slot.
 
@@ -111,17 +106,14 @@ Pool A dan Pool B digabung jadi satu ranking untuk berebut sisa slot.
 
 ```
 1. slot_terisi = slot wajib kolaborasi (Tahap 2)
-2. sisa_slot = 7 - slot_terisi
-3. gabungkan kandidat Pool A + Pool B (lolos filter Tahap 1), urutkan Score turun
-4. terapkan batas keberagaman: maksimal MAX_SLOT_PER_PRODUK (default 2) per produk/hari
-5. cek Fairness Queue (Tahap 5a) -> masukkan duluan sebelum sisa ranking normal
-6. isi sisa_slot dari ranking teratas ke bawah, lewati produk yang sudah kena batas
+2. slot_hot = slot prioritas produk hot/winning (di-cap oleh HOT_PRIORITY_SLOTS, default 2)
+3. alokasikan sisa slot dari ranking teratas (Pool A + Pool B) dengan proporsi interleaved
+4. terapkan batas keberagaman: MAX_SLOT_PER_PRODUK (default 1) — setiap produk max 1x/hari
+5. jika ranking habis, isi dari Fairness Queue (Tahap 5a)
 ```
 
 ### 7a. Fairness Queue
-Untuk tiap produk Pool A: jika sudah `FAIRNESS_WINDOW` (default 30 hari) **tanpa** dapat slot konten sama sekali, paksa masuk 1 slot hari itu terlepas dari skornya — prioritas di bawah slot wajib kolaborasi, tapi di atas ranking skor biasa. Ini menjamin "pernah closing = tidak pernah nol perhatian" sebagai aturan pasti, bukan cuma hasil skor yang kebetulan tinggi.
-
-**Pengaman kematangan data**: kalau rentang data yang tersedia di sistem belum mencapai `FAIRNESS_WINDOW` (misal sistem baru jalan 10 hari), aturan ini belum diaktifkan dulu — supaya tidak menghukum produk berdasarkan histori yang memang belum ada.
+Untuk tiap produk Pool A: jika sudah `FAIRNESS_WINDOW` (default 30 hari) **tanpa** dapat slot konten sama sekali, dapat masuk 1 slot sebagai cadangan (setelah slot winning & skor teratas terisi).
 
 ---
 
@@ -129,11 +121,15 @@ Untuk tiap produk Pool A: jika sudah `FAIRNESS_WINDOW` (default 30 hari) **tanpa
 
 | Parameter | Default | Fungsi |
 |---|---|---|
-| `TEST_BUDGET` | 6 konten | Batas percobaan sebelum masuk Watchlist |
+| `TEST_BUDGET` | 10 konten | Batas percobaan sebelum masuk Watchlist |
 | `GRACE_DAYS` | 5 hari | Masa produk baru bebas penalti testing |
 | `FLOOR_RECENCY` | 0.05 | Skor minimum produk Proven walau lama tidak closing |
+| `HOT_THRESHOLD` | 5 items | Batas minimum items_sold 7d untuk dianggap Hot/Winning |
+| `HOT_MAX_SCALE` | 30 items | Pembagi skala normalisasi velocity Hot Product |
+| `HOT_PRIORITY_SLOTS` | 2 slot/hari | Maks slot prioritas (Step 2) untuk hot product per hari |
+| `WEIGHT_HOT_BOOST` | 0.20 | Bobot hot product pada Score_A (seimbang, tidak mendominasi) |
 | `FAIRNESS_WINDOW` | 30 hari | Batas maksimal produk Proven "dilupakan" |
-| `MAX_SLOT_PER_PRODUK` | 2 slot/hari | Batas keberagaman harian |
+| `MAX_SLOT_PER_PRODUK` | 1 slot/hari | Maks 1 produk per hari (lebih banyak variasi) |
 | `BASE_TESTING` | 0.6 | Titik awal skor produk testing |
 
 ---
@@ -142,19 +138,19 @@ Untuk tiap produk Pool A: jika sudah `FAIRNESS_WINDOW` (default 30 hari) **tanpa
 
 ```
 setiap kali data direfresh:
-    hitung ulang agregat per produk (Bagian 2)
+    hitung ulang agregat per produk + items_sold_7d (Bagian 2)
     kandidat = filter_keras(semua_produk)                    # Bagian 3
     wajib = ambil_slot_kolaborasi(kandidat)                  # Bagian 4
-    sisa = 7 - len(wajib)
-
+    
     A, B, C = klasifikasi(kandidat - wajib)                  # Bagian 5
+    hot = deteksi_hot_products(kandidat, HOT_THRESHOLD)
+    
     ranking = urutkan_turun(
         [score_a(p) for p in A] + [score_b(p) for p in B]
     )                                                         # Bagian 6
 
-    fairness = cek_fairness_queue(A)                          # Bagian 7a
-    jadwal = wajib + fairness + ambil_top(
-        ranking, sisa - len(fairness), max_per_produk=MAX_SLOT_PER_PRODUK
+    jadwal = wajib + ambil_hot_priority(hot, max=HOT_PRIORITY_SLOTS) + ambil_top_interleaved(
+        ranking, sisa_slot, max_per_produk=1
     )
 
     return jadwal

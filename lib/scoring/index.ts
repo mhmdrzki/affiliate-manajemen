@@ -22,6 +22,7 @@ import {
   scorePoolA,
   scorePoolB,
   mergeAndRank,
+  detectHotProducts,
 } from "./engine";
 import { allocateSlots } from "./scheduler";
 import { ScheduleResult, WeeklyScheduleResult } from "./types";
@@ -118,8 +119,11 @@ export async function generateDailySchedule(
   // 3. Agregasi data produk dari orders dan contents (termasuk riwayat virtual)
   const { aggregates, contentTrackingStart } = await aggregateProducts(userId, referenceDate, effectiveHistory);
 
+  // 3.5 Deteksi produk Hot / Winning
+  const enrichedAggregates = detectHotProducts(aggregates, params);
+
   // 4. Jalankan Filter Keras
-  const { eligible, excluded } = filterKeras(aggregates);
+  const { eligible, excluded } = filterKeras(enrichedAggregates);
 
   // 5. Identifikasi Slot Wajib Kolaborasi
   const collabSlots = identifyCollaborationSlots(eligible, referenceDate);
@@ -136,6 +140,9 @@ export async function generateDailySchedule(
   // 9. Gabungkan dan ranking Pool A + B
   const ranking = mergeAndRank(scoredA, scoredB);
 
+  // Identifikasi produk hot dari kandidat yang lolos filter keras
+  const hotProducts = eligible.filter((p) => p.is_hot);
+
   // 10. Alokasikan slot konten (7 slot)
   const result = allocateSlots(
     collabSlots,
@@ -148,7 +155,8 @@ export async function generateDailySchedule(
     contentTrackingStart,
     referenceDate,
     params,
-    excluded
+    excluded,
+    hotProducts
   );
 
   return result;

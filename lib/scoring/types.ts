@@ -23,6 +23,9 @@ export interface ProductAggregate {
   // === Order aggregates (dari sales_data) ===
   total_orders: number;       // COUNT(*) orders
   total_items_sold: number;   // SUM(items_sold)
+  items_sold_7d: number;      // items sold dalam 7 hari terakhir
+  items_sold_3d: number;      // items sold dalam 3 hari terakhir
+  orders_7d: number;          // orders 7 hari terakhir
   last_order_date: string | null;  // MAX(ordered_at)
   dslo: number;               // days since last order (dari reference_date)
   orders_14d: number;         // orders dalam 14 hari terakhir
@@ -35,9 +38,11 @@ export interface ProductAggregate {
   content_14d: number;        // konten dalam 14 hari terakhir
   content_14d_prev: number;   // konten 14 hari sebelumnya
 
-  // === Derived ===
+  // === Derived & Hot Product Detection ===
   has_ever_sold: boolean;     // total_orders > 0
   product_age_days: number;   // reference_date - date_added
+  is_hot: boolean;            // apakah terdeteksi sebagai hot product
+  hot_score: number;          // 0.0 - 1.0 intensitas hot product
 
   // === Collab-specific ===
   collab_content_posted: number;  // konten antara collab_start s/d collab_deadline
@@ -56,6 +61,7 @@ export interface ScoredProduct {
     efficiency?: number;       // rank-percentile total_orders/max(total_content,1)
     content_debt?: number;     // min(1, dslc/21)
     untapped_bonus?: number;   // 0 | 0.3 | 1.0 tergantung content_tracking_start
+    hot_product_boost?: number; // 0.0 - 1.0 berdasarkan velocity penjualan
     // Pool B components
     base_testing?: number;
     content_penalty?: number;
@@ -69,7 +75,7 @@ export interface ScheduleSlot {
   slot_number: number;        // 1-7
   product_id: string;
   product_name: string;
-  slot_type: 'collaboration' | 'fairness' | 'ranked';
+  slot_type: 'collaboration' | 'hot_product' | 'fairness' | 'ranked';
   pool: Pool | null;
   score: number | null;
   pace_info?: {               // hanya untuk slot collaboration
@@ -95,6 +101,13 @@ export interface ScheduleResult {
     pool_b_count: number;
     pool_c_count: number;
     pool_d_count: number;
+    hot_product_count: number;
+    hot_products: {
+      product_id: string;
+      product_name: string;
+      items_sold_7d: number;
+      hot_score: number;
+    }[];
     content_tracking_start: string | null;
     data_maturity_days: number;
     fairness_active: boolean;
